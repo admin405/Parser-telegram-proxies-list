@@ -38,7 +38,50 @@ namespace TelegramProxyParser.Services
                     foreach (var line in lines)
                     {
                         var trimmedLine = line.Trim();
-                        if (trimmedLine.StartsWith("tg://proxy", StringComparison.OrdinalIgnoreCase))
+                        // Исправлено: теперь поддерживаются оба формата
+                        if (trimmedLine.StartsWith("tg://proxy", StringComparison.OrdinalIgnoreCase) ||
+                            trimmedLine.StartsWith("https://t.me/proxy", StringComparison.OrdinalIgnoreCase))
+                        {
+                            proxies.Add(trimmedLine);
+                        }
+                    }
+
+                    // Удаляем дубликаты
+                    var uniqueProxies = new HashSet<string>(proxies);
+                    return new List<string>(uniqueProxies);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Ошибка загрузки прокси: {ex.Message}", ex);
+            }
+        }
+
+        // Новый метод для загрузки прокси без фильтрации (для тестового источника)
+        public async Task<List<string>> LoadRawProxiesFromUrlAsync(string url, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                using (var response = await httpClient.SendAsync(request, cancellationToken))
+                {
+                    response.EnsureSuccessStatusCode();
+                    var content = await response.Content.ReadAsStringAsync();
+
+                    var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    var proxies = new List<string>();
+                    foreach (var line in lines)
+                    {
+                        var trimmedLine = line.Trim();
+                        // Пропускаем пустые строки и HTML-теги
+                        if (!string.IsNullOrEmpty(trimmedLine) &&
+                            !trimmedLine.StartsWith("<") &&
+                            !trimmedLine.StartsWith("<!DOCTYPE"))
                         {
                             proxies.Add(trimmedLine);
                         }

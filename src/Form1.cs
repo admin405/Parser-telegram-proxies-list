@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
+using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -16,6 +18,7 @@ namespace TelegramProxyParser
         private Panel topPanel;
         private Button btnProxyEU;
         private Button btnProxyRU;
+        private Button btnTest;
         private Button btnAbout;
         private Label lblProgramName;
         private FlowLayoutPanel flowProxies;
@@ -30,9 +33,13 @@ namespace TelegramProxyParser
         private ProxyCheckerService proxyChecker;
         private CancellationTokenSource cts;
 
+        // Версия приложения
+        private const string APP_VERSION = "1.5";
+
         //Подтягиваем список проксей, любезно заготовленных комрадом kort0881
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
         private const string PROXY_RU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt";
+        private const string PROXY_TEST_URL = "https://raw.githubusercontent.com/Surfboardv2ray/TGProto/refs/heads/main/proxies-tested.txt";
 
         public Form1()
         {
@@ -44,12 +51,23 @@ namespace TelegramProxyParser
 
             // Показываем приветственное сообщение при старте
             ShowWelcomeMessage();
+
+            // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ОБНОВЛЕНИЙ ПРИ ЗАПУСКЕ
+            // Запускаем через 2 секунды после загрузки формы
+            var timer = new System.Windows.Forms.Timer();
+            timer.Interval = 2000;
+            timer.Tick += async (s, e) =>
+            {
+                timer.Stop();
+                await AutoCheckForUpdatesAsync();
+            };
+            timer.Start();
         }
 
         //...и шапочку
         private void InitializeComponent()
         {
-            this.Text = "Telegram Proxy Parser v1.4";
+            this.Text = $"Telegram Proxy Parser v{APP_VERSION}";
             this.Size = new Size(750, 900);
             this.MinimumSize = new Size(750, 900);
             this.MaximumSize = new Size(750, 900);
@@ -61,14 +79,12 @@ namespace TelegramProxyParser
             topPanel = new Panel()
             {
                 Dock = DockStyle.Top,
-                Height = 70,
+                Height = 110,
                 BackColor = Color.FromArgb(0, 53, 119),
                 Padding = new Padding(15, 10, 15, 10)
             };
 
-
-
-            // Кнопка Европа
+            // Кнопка Европа (первый ряд, слева)
             btnProxyEU = new Button()
             {
                 Text = "ЕВРОПА",
@@ -85,7 +101,7 @@ namespace TelegramProxyParser
             btnProxyEU.FlatAppearance.MouseDownBackColor = Color.FromArgb(33, 148, 82);
             btnProxyEU.Click += BtnProxyEU_Click;
 
-            // Кнопка Россия
+            // Кнопка Россия (первый ряд, справа от Европы)
             btnProxyRU = new Button()
             {
                 Text = "РОССИЯ",
@@ -102,7 +118,24 @@ namespace TelegramProxyParser
             btnProxyRU.FlatAppearance.MouseDownBackColor = Color.FromArgb(31, 97, 141);
             btnProxyRU.Click += BtnProxyRU_Click;
 
-            // Кнопка "О программе"
+            // Кнопка Surfboardv2ray (второй ряд, по центру)
+            btnTest = new Button()
+            {
+                Text = "SurfboardV2ray",
+                Location = new Point(113, 62),
+                Size = new Size(150, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(244, 109, 58),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnTest.FlatAppearance.BorderSize = 0;
+            btnTest.FlatAppearance.MouseOverBackColor = Color.FromArgb(93, 21, 21);
+            btnTest.FlatAppearance.MouseDownBackColor = Color.FromArgb(127, 58, 156);
+            btnTest.Click += BtnTest_Click;
+
+            // Кнопка "О программе" 
             btnAbout = new Button()
             {
                 Text = "СПРАВКА",
@@ -119,12 +152,12 @@ namespace TelegramProxyParser
             btnAbout.FlatAppearance.MouseDownBackColor = Color.FromArgb(108, 122, 122);
             btnAbout.Click += BtnAbout_Click;
 
-            // Название программы
+            // Название программы (по центру справа)
             lblProgramName = new Label()
             {
-                Text = "Парсер прокси Telegram v1.4",
+                Text = $"Парсер прокси Telegram v{APP_VERSION}",
                 AutoSize = true,
-                Location = new Point(390, 22),
+                Location = new Point(390, 40),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleRight
@@ -197,7 +230,7 @@ namespace TelegramProxyParser
             };
 
             statusPanel.Controls.Add(lblStatus);
-            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnAbout, lblProgramName });
+            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, lblProgramName });
             this.Controls.AddRange(new Control[] { flowProxies, loadingPanel, statusPanel, topPanel });
         }
 
@@ -211,17 +244,15 @@ namespace TelegramProxyParser
             var welcomePanel = new Panel()
             {
                 Width = flowProxies.Width - 40,
-                Height = 400,
+                Height = 650,  // Увеличена высота, чтобы кнопка точно поместилась
                 BackColor = Color.White,
                 Margin = new Padding(0, 20, 0, 0)
             };
 
-            
-
             // Заголовок
             var titleLabel = new Label()
             {
-                Text = "ДОБРО ПОЖАЛОВАТЬ!",
+                Text = "КАК ПОЛЬЗОВАТЬСЯ:",
                 Location = new Point(20, 30),
                 Width = welcomePanel.Width - 40,
                 Height = 40,
@@ -230,52 +261,60 @@ namespace TelegramProxyParser
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
- 
+           
 
-            // Описание
-            var descLabel = new Label()
-            {
-                Text = "Telegram Proxy Parser v1.4\n\n" +
-                       "Программа для парсинга и проверки прокси для Telegram\n",
-                Location = new Point(20, 80),
-                Width = welcomePanel.Width - 40,
-                Height = 90,
-                Font = new Font("Segoe UI", 11),
-                ForeColor = Color.FromArgb(85, 85, 85),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            // Инструкция
-            var instructionLabel = new Label()
-            {
-                Text = "КАК ПОЛЬЗОВАТЬСЯ:",
-                Location = new Point(20, 170),
-                Width = welcomePanel.Width - 40,
-                Height = 30,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.FromArgb(52, 152, 219),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            // Шаги
+            
+            // Пошаговая инструкция 
             var stepsLabel = new Label()
             {
                 Text = "1️⃣ Кнопка «ЕВРОПА» - Маскировка трафика под Google, Amazon, Microsoft и др.\n\n" +
                        "2️⃣ Кнопка «РОССИЯ» - Маскировка трафика под Yandex, VK, Mail.ru, Gosuslugi и др.\n\n" +
-                       "3️⃣ Дождитесь проверки всех прокси\n\n" +
-                       "4️⃣ Нажмите на любую рабочую прокси для автоматического открытия в Telegram\n",
-                Location = new Point(30, 220),
+                       "3️⃣ Кнопка «SurfboardV2ray» - Большой список прокси\n\n" +
+                       "4️⃣ Дождитесь проверки всех прокси\n\n" +
+                       "5️⃣ Нажмите на любую рабочую прокси для автоматического открытия в Telegram\n",
+                Location = new Point(35, 100),
                 Width = welcomePanel.Width - 60,
-                Height = 250,
+                Height = 200,  
                 Font = new Font("Segoe UI", 10),
                 ForeColor = Color.FromArgb(31, 31, 31),
                 TextAlign = ContentAlignment.TopLeft
             };
 
+            // Кнопка GitHub в приветственном окне
+            Button btnGitHubWelcome = new Button()
+            {
+                Text = "GitHub",
+                Location = new Point(welcomePanel.Width / 2 - 65, 600),  
+                Size = new Size(130, 35),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(36, 41, 46),
+                ForeColor = Color.White,
+                Font = new Font("Tahoma", 14, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnGitHubWelcome.FlatAppearance.BorderSize = 0;
+            btnGitHubWelcome.FlatAppearance.MouseOverBackColor = Color.FromArgb(24, 28, 32);
+            btnGitHubWelcome.FlatAppearance.MouseDownBackColor = Color.FromArgb(15, 18, 21);
+            btnGitHubWelcome.Click += (s, e) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "https://github.com/ComradeBingo",
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка открытия ссылки: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
             // Добавляем все элементы
             welcomePanel.Controls.AddRange(new Control[] {
-                titleLabel, descLabel, instructionLabel, stepsLabel
-            });
+        titleLabel, stepsLabel, btnGitHubWelcome
+    });
 
             flowProxies.Controls.Add(welcomePanel);
         }
@@ -288,6 +327,11 @@ namespace TelegramProxyParser
         private async void BtnProxyRU_Click(object sender, EventArgs e)
         {
             await LoadAndCheckProxies(PROXY_RU_URL, "РОССИЯ");
+        }
+
+        private async void BtnTest_Click(object sender, EventArgs e)
+        {
+            await LoadAndCheckTestProxies(PROXY_TEST_URL, "Surfboardv2ray");
         }
 
         private async Task LoadAndCheckProxies(string url, string region)
@@ -304,7 +348,7 @@ namespace TelegramProxyParser
                 SetControlsEnabled(false);
                 ShowLoading(true, "Загрузка списка прокси...");
 
-                // Очищаем панель (приветствие исчезнет здесь)
+                // Очищаем панель
                 flowProxies.Controls.Clear();
                 allProxies.Clear();
                 workingProxies.Clear();
@@ -345,6 +389,169 @@ namespace TelegramProxyParser
             {
                 SetControlsEnabled(true);
             }
+        }
+
+        private async Task LoadAndCheckTestProxies(string url, string region)
+        {
+            try
+            {
+                if (cts != null)
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+                cts = new CancellationTokenSource();
+
+                SetControlsEnabled(false);
+                ShowLoading(true, "Загрузка списка прокси...");
+
+                // Очищаем панель
+                flowProxies.Controls.Clear();
+                allProxies.Clear();
+                workingProxies.Clear();
+
+                lblStatus.Text = $"Загрузка прокси {region}...";
+
+                // Загружаем содержимое файла
+                var proxyLines = await proxyParser.LoadProxiesFromUrlAsync(url);
+
+                if (proxyLines.Count == 0)
+                {
+                    MessageBox.Show("Прокси не найдены!", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                lblStatus.Text = $"Парсинг прокси {region} (специальный формат)...";
+
+                // Парсим специальный формат ссылок
+                allProxies = ParseSpecialProxyFormat(proxyLines);
+
+                if (allProxies.Count == 0)
+                {
+                    MessageBox.Show("Не удалось распарсить прокси!", "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                await CheckAllProxies(region);
+                ShowResult();
+            }
+            catch (OperationCanceledException)
+            {
+                lblStatus.Text = "Операция отменена";
+                ShowLoading(false);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                lblStatus.Text = $"Ошибка: {ex.Message}";
+                ShowLoading(false);
+            }
+            finally
+            {
+                SetControlsEnabled(true);
+            }
+        }
+
+        private List<ProxyInfo> ParseSpecialProxyFormat(List<string> proxyLines)
+        {
+            var proxies = new List<ProxyInfo>();
+
+            foreach (var line in proxyLines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                try
+                {
+                    // Пропускаем HTML-теги и пустые строки
+                    if (line.TrimStart().StartsWith("<") || line.Contains("<!DOCTYPE"))
+                        continue;
+
+                    // Ищем ссылку вида https://t.me/proxy?server=...&port=...&secret=...
+                    if (line.Contains("t.me/proxy") && line.Contains("server="))
+                    {
+                        var proxy = ParseTelegramProxyLink(line);
+                        if (proxy != null)
+                        {
+                            proxies.Add(proxy);
+                        }
+                    }
+                    // Альтернативный формат: просто ссылка без лишнего текста
+                    else if (line.Trim().StartsWith("https://t.me/proxy?"))
+                    {
+                        var proxy = ParseTelegramProxyLink(line.Trim());
+                        if (proxy != null)
+                        {
+                            proxies.Add(proxy);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Ошибка парсинга строки: {line}, {ex.Message}");
+                }
+            }
+
+            return proxies;
+        }
+
+        private ProxyInfo ParseTelegramProxyLink(string url)
+        {
+            try
+            {
+                // Извлекаем параметры из URL
+                var serverMatch = Regex.Match(url, @"server=([^&]+)");
+                var portMatch = Regex.Match(url, @"port=(\d+)");
+                var secretMatch = Regex.Match(url, @"secret=([^&]+)");
+
+                if (serverMatch.Success && portMatch.Success && secretMatch.Success)
+                {
+                    string server = Uri.UnescapeDataString(serverMatch.Groups[1].Value);
+                    string portStr = Uri.UnescapeDataString(portMatch.Groups[1].Value);
+                    string secret = Uri.UnescapeDataString(secretMatch.Groups[1].Value);
+
+                    if (int.TryParse(portStr, out int port))
+                    {
+                        string proxyType = DetermineProxyType(secret);
+
+                        // Формируем ссылку в формате tg:// для Telegram
+                        string tgProxyUrl = $"tg://proxy?server={Uri.EscapeDataString(server)}&port={port}&secret={Uri.EscapeDataString(secret)}";
+
+                        return new ProxyInfo
+                        {
+                            Server = server,
+                            Port = port,
+                            Secret = secret,
+                            OriginalUrl = tgProxyUrl,
+                            ProxyType = proxyType
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка парсинга ссылки: {url}, {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private string DetermineProxyType(string secret)
+        {
+            if (string.IsNullOrEmpty(secret))
+                return "Unknown";
+
+            // Простая логика определения типа на основе секрета
+            if (secret.Length >= 2)
+            {
+                string prefix = secret.Substring(0, 2).ToLower();
+                if (prefix == "ee" || prefix == "dd")
+                    return "Fake TLS";
+                else if (prefix == "ee" && secret.Length > 10)
+                    return "Secure";
+            }
+
+            return "Classic";
         }
 
         private async Task CheckAllProxies(string region)
@@ -411,7 +618,10 @@ namespace TelegramProxyParser
             }
             else
             {
-                foreach (var proxy in workingProxies)
+                // СОРТИРУЕМ прокси по пингу (от меньшего к большему)
+                var sortedProxies = workingProxies.OrderBy(p => p.Ping <= 0 ? 0 : p.Ping).ToList();
+
+                foreach (var proxy in sortedProxies)
                 {
                     CreateProxyControl(proxy);
                 }
@@ -427,7 +637,7 @@ namespace TelegramProxyParser
                 lblStatus.Text = $"Завершено | Всего: {allProxies.Count} | Рабочих: {workingProxies.Count} | " +
                                 $"Fake TLS: {workingFakeTls}/{totalFakeTls} | " +
                                 $"Secure: {workingSecure}/{totalSecure} | " +
-                                $"Classic: {workingClassic}/{totalClassic}";
+                                $"Classic: {workingClassic}/{totalClassic} | 📊 Сортировка по пингу";
             }
         }
 
@@ -588,17 +798,20 @@ namespace TelegramProxyParser
 
             btnProxyEU.Enabled = enabled;
             btnProxyRU.Enabled = enabled;
+            btnTest.Enabled = enabled;
             btnAbout.Enabled = enabled;
 
             if (enabled)
             {
                 btnProxyEU.Text = "ЕВРОПА";
                 btnProxyRU.Text = "РОССИЯ";
+                btnTest.Text = "SurfboardV2ray";
             }
             else
             {
                 btnProxyEU.Text = "⏳ ЗАГРУЗКА";
                 btnProxyRU.Text = "⏳ ЗАГРУЗКА";
+                btnTest.Text = "⏳ ЗАГРУЗКА";
             }
         }
 
@@ -619,6 +832,61 @@ namespace TelegramProxyParser
             }
         }
 
+        // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ОБНОВЛЕНИЙ
+        private async Task AutoCheckForUpdatesAsync()
+        {
+            try
+            {
+                string gitHubOwner = "ComradeBingo";
+                string gitHubRepo = "Proxy-telegram-windows";
+                string apiUrl = $"https://api.github.com/repos/{gitHubOwner}/{gitHubRepo}/releases/latest";
+
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "Telegram-Proxy-Parser-App");
+                    var response = await client.GetAsync(apiUrl);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = await response.Content.ReadAsStringAsync();
+
+                        var tagMatch = Regex.Match(json, "\"tag_name\":\\s*\"([^\"]+)\"");
+                        if (tagMatch.Success)
+                        {
+                            string latestVersion = tagMatch.Groups[1].Value;
+                            if (latestVersion.StartsWith("v"))
+                                latestVersion = latestVersion.Substring(1);
+
+                            Version currentVersion = new Version(APP_VERSION);
+                            Version newVersion = new Version(latestVersion);
+
+                            if (newVersion > currentVersion)
+                            {
+                                DialogResult result = MessageBox.Show(
+                                    $"Доступна новая версия {latestVersion}!\n\nТекущая версия: {currentVersion}\n\nПерейти на страницу загрузки?",
+                                    "Доступно обновление",
+                                    MessageBoxButtons.YesNo,
+                                    MessageBoxIcon.Information);
+
+                                if (result == DialogResult.Yes)
+                                {
+                                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                    {
+                                        FileName = $"https://github.com/{gitHubOwner}/{gitHubRepo}/releases/latest",
+                                        UseShellExecute = true
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка автоматической проверки обновлений: {ex.Message}");
+            }
+        }
+
         private void BtnAbout_Click(object sender, EventArgs e)
         {
             // Создаем форму для отображения информации и кнопок доната
@@ -634,17 +902,17 @@ namespace TelegramProxyParser
             // Информационная часть
             Label lblInfo = new Label()
             {
-                Text = "Telegram Proxy Parser v1.4\n\n" +
+                Text = $"Telegram Proxy Parser v{APP_VERSION}\n\n" +
                        "Парсер и проверка прокси для Telegram\n\n" +
                        "Источники:\n" +
                        "• Европа: Маскировка под Google, Amazon, Microsoft и др.\n" +
-                       "• Россия: Маскировка под Yandex, VK, Mail.ru, Gosuslugi и др.\n\n" +
+                       "• Россия: Маскировка под Yandex, VK, Mail.ru, Gosuslugi и др.\n" +
+                       "• SurfboardV2ray: Большой список прокси\n\n" +
                        "• Списки обновляются каждый час.\n" +
                        "• Доступность сервера не гарантирует его работоспособность!\n" +
-                       "• Они не дремлют... Но и мы не спим!\n\n" +
-                       "© by Comrade Bingo",
+                       "• Они не дремлют... Но и мы не спим!\n\n",
                 Location = new Point(25, 20),
-                Size = new Size(430, 300),
+                Size = new Size(430, 280),
                 Font = new Font("Tahoma", 10),
                 TextAlign = ContentAlignment.TopLeft
             };
@@ -653,9 +921,9 @@ namespace TelegramProxyParser
             LinkLabel lblAndroid = new LinkLabel()
             {
                 Text = "Скачать версию для Android",
-                Location = new Point(100, 330),
-                Size = new Size(280, 25),
-                Font = new Font("Tahoma", 11, FontStyle.Underline),
+                Location = new Point(100, 300),
+                Size = new Size(280, 30),
+                Font = new Font("Tahoma", 11, FontStyle.Bold | FontStyle.Underline),
                 TextAlign = ContentAlignment.MiddleCenter,
                 LinkColor = Color.FromArgb(46, 204, 113),
                 ActiveLinkColor = Color.FromArgb(39, 174, 96)
@@ -680,9 +948,9 @@ namespace TelegramProxyParser
             LinkLabel lblGitHub = new LinkLabel()
             {
                 Text = "GitHub (Windows версия)",
-                Location = new Point(140, 365),
-                Size = new Size(200, 25),
-                Font = new Font("Tahoma", 11, FontStyle.Underline),
+                Location = new Point(100, 330),
+                Size = new Size(280, 30),
+                Font = new Font("Tahoma", 11, FontStyle.Bold | FontStyle.Underline),
                 TextAlign = ContentAlignment.MiddleCenter,
                 LinkColor = Color.FromArgb(88, 101, 242),
                 ActiveLinkColor = Color.FromArgb(68, 78, 188)
@@ -706,7 +974,7 @@ namespace TelegramProxyParser
             // Разделительная линия
             Panel separator = new Panel()
             {
-                Location = new Point(25, 405),
+                Location = new Point(25, 400),
                 Size = new Size(430, 1),
                 BackColor = Color.FromArgb(224, 227, 234)
             };
@@ -715,66 +983,35 @@ namespace TelegramProxyParser
             Label lblSupport = new Label()
             {
                 Text = "Поддержать проект",
-                Location = new Point(25, 420),
+                Location = new Point(25, 410),
                 Size = new Size(430, 30),
                 Font = new Font("Tahoma", 11, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.FromArgb(52, 59, 75)
             };
 
-            // Кнопка Boosty
-            Button btnBoosty = new Button()
+            // Кнопка GitHub В ОКНЕ СПРАВКИ
+            Button btnGitHub = new Button()
             {
-                Text = "Boosty",
-                Location = new Point(115, 460),
-                Size = new Size(110, 35),
+                Text = "GitHub",
+                Location = new Point(175, 450),
+                Size = new Size(130, 35),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(241, 196, 15),
+                BackColor = Color.FromArgb(36, 41, 46),
                 ForeColor = Color.White,
                 Font = new Font("Tahoma", 11, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
-            btnBoosty.FlatAppearance.BorderSize = 0;
-            btnBoosty.FlatAppearance.MouseOverBackColor = Color.FromArgb(243, 156, 18);
-            btnBoosty.FlatAppearance.MouseDownBackColor = Color.FromArgb(211, 84, 0);
-            btnBoosty.Click += (s, args) =>
+            btnGitHub.FlatAppearance.BorderSize = 0;
+            btnGitHub.FlatAppearance.MouseOverBackColor = Color.FromArgb(24, 28, 32);
+            btnGitHub.FlatAppearance.MouseDownBackColor = Color.FromArgb(15, 18, 21);
+            btnGitHub.Click += (s, args) =>
             {
                 try
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = "https://boosty.to/comradebingo/donate",
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Ошибка открытия ссылки: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            };
-
-            // Кнопка YooMoney 
-            Button btnYooMoney = new Button()
-            {
-                Text = "YooMoney",
-                Location = new Point(250, 460),
-                Size = new Size(110, 35),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(46, 204, 113),
-                ForeColor = Color.White,
-                Font = new Font("Tahoma", 11, FontStyle.Bold),
-                Cursor = Cursors.Hand
-            };
-            btnYooMoney.FlatAppearance.BorderSize = 0;
-            btnYooMoney.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 174, 96);
-            btnYooMoney.FlatAppearance.MouseDownBackColor = Color.FromArgb(33, 148, 82);
-            btnYooMoney.Click += (s, args) =>
-            {
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "https://yoomoney.ru/to/410011017939948",
+                        FileName = "https://github.com/ComradeBingo",
                         UseShellExecute = true
                     });
                 }
@@ -785,7 +1022,7 @@ namespace TelegramProxyParser
             };
 
             // Добавляем все элементы на форму
-            aboutForm.Controls.AddRange(new Control[] { lblInfo, lblAndroid, lblGitHub, separator, lblSupport, btnBoosty, btnYooMoney });
+            aboutForm.Controls.AddRange(new Control[] { lblInfo, lblAndroid, lblGitHub, separator, lblSupport, btnGitHub });
 
             // Показываем форму
             aboutForm.ShowDialog();
