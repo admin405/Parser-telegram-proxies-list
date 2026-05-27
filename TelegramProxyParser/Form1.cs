@@ -20,6 +20,8 @@ namespace TelegramProxyParser
         private Button btnProxyRU;
         private Button btnTest;
         private Button btnAbout;
+        private Button btnSettings;
+        private Button btnLoadCustom;
         private Label lblProgramName;
         private FlowLayoutPanel flowProxies;
         private Label lblStatus;
@@ -27,16 +29,17 @@ namespace TelegramProxyParser
         private Label lblLoadingProgress;
         private ProgressBar progressBar;
 
+        // Текущие настройки
+        private int currentTimeout = 300;
+        private int currentConcurrency = 5;
+
         private List<ProxyInfo> allProxies;
         private List<ProxyInfo> workingProxies;
         private ProxyParserService proxyParser;
         private ProxyCheckerService proxyChecker;
         private CancellationTokenSource cts;
 
-        // Версия приложения
-        private const string APP_VERSION = "1.6";
-
-        //Подтягиваем список проксей, любезно заготовленных комрадом kort0881
+        private const string APP_VERSION = "1.7";
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
         private const string PROXY_RU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt";
         private const string PROXY_TEST_URL = "https://raw.githubusercontent.com/Surfboardv2ray/TGProto/refs/heads/main/proxies-tested.txt";
@@ -46,14 +49,13 @@ namespace TelegramProxyParser
             InitializeComponent();
             proxyParser = new ProxyParserService();
             proxyChecker = new ProxyCheckerService();
+            proxyChecker.SetTimeout(currentTimeout);
             allProxies = new List<ProxyInfo>();
             workingProxies = new List<ProxyInfo>();
+            cts = null;
 
-            // Показываем приветственное сообщение при старте
             ShowWelcomeMessage();
 
-            // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ОБНОВЛЕНИЙ ПРИ ЗАПУСКЕ
-            // Запускаем через 1 секунду после загрузки формы
             var timer = new System.Windows.Forms.Timer();
             timer.Interval = 1000;
             timer.Tick += async (s, e) =>
@@ -64,7 +66,6 @@ namespace TelegramProxyParser
             timer.Start();
         }
 
-        //...и шапочку
         private void InitializeComponent()
         {
             this.Text = $"Telegram Proxy Parser v{APP_VERSION}";
@@ -75,7 +76,6 @@ namespace TelegramProxyParser
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.FromArgb(0, 153, 119);
 
-            // Верхняя панель с градиентом
             topPanel = new Panel()
             {
                 Dock = DockStyle.Top,
@@ -84,7 +84,7 @@ namespace TelegramProxyParser
                 Padding = new Padding(15, 10, 15, 10)
             };
 
-            // Кнопка Европа (первый ряд, слева)
+            // Кнопка Европа
             btnProxyEU = new Button()
             {
                 Text = "ЕВРОПА",
@@ -101,7 +101,7 @@ namespace TelegramProxyParser
             btnProxyEU.FlatAppearance.MouseDownBackColor = Color.FromArgb(33, 148, 82);
             btnProxyEU.Click += BtnProxyEU_Click;
 
-            // Кнопка Россия (первый ряд, справа от Европы)
+            // Кнопка Россия
             btnProxyRU = new Button()
             {
                 Text = "РОССИЯ",
@@ -118,11 +118,11 @@ namespace TelegramProxyParser
             btnProxyRU.FlatAppearance.MouseDownBackColor = Color.FromArgb(31, 97, 141);
             btnProxyRU.Click += BtnProxyRU_Click;
 
-            // Кнопка Surfboardv2ray (второй ряд, по центру)
+            // Кнопка SurfboardV2ray
             btnTest = new Button()
             {
                 Text = "SurfboardV2ray",
-                Location = new Point(113, 62),
+                Location = new Point(255, 17),
                 Size = new Size(150, 38),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(244, 109, 58),
@@ -135,11 +135,11 @@ namespace TelegramProxyParser
             btnTest.FlatAppearance.MouseDownBackColor = Color.FromArgb(127, 58, 156);
             btnTest.Click += BtnTest_Click;
 
-            // Кнопка "О программе" 
+            // Кнопка Справка
             btnAbout = new Button()
             {
                 Text = "СПРАВКА",
-                Location = new Point(255, 17),
+                Location = new Point(580, 62),
                 Size = new Size(110, 38),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(149, 165, 166),
@@ -152,18 +152,51 @@ namespace TelegramProxyParser
             btnAbout.FlatAppearance.MouseDownBackColor = Color.FromArgb(108, 122, 122);
             btnAbout.Click += BtnAbout_Click;
 
-            // Название программы (по центру справа)
+            // Кнопка загрузки своего списка
+            btnLoadCustom = new Button()
+            {
+                Text = "📁 СВОЙ СПИСОК",
+                Location = new Point(115, 62),
+                Size = new Size(150, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(155, 89, 182),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnLoadCustom.FlatAppearance.BorderSize = 0;
+            btnLoadCustom.FlatAppearance.MouseOverBackColor = Color.FromArgb(142, 68, 173);
+            btnLoadCustom.FlatAppearance.MouseDownBackColor = Color.FromArgb(128, 58, 156);
+            btnLoadCustom.Click += BtnLoadCustom_Click;
+
+            // Название программы
             lblProgramName = new Label()
             {
                 Text = $"Парсер прокси Telegram v{APP_VERSION}",
                 AutoSize = true,
-                Location = new Point(390, 40),
+                Location = new Point(415, 25),
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleRight
             };
 
-            // Панель для прокси с закругленными углами
+            // Кнопка Настройки
+            btnSettings = new Button()
+            {
+                Text = "⚙️ Настройки",
+                Location = new Point(420, 62),
+                Size = new Size(140, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(52, 73, 94),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSettings.FlatAppearance.BorderSize = 0;
+            btnSettings.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 62, 80);
+            btnSettings.FlatAppearance.MouseDownBackColor = Color.FromArgb(36, 51, 66);
+            btnSettings.Click += BtnSettings_Click;
+
             flowProxies = new FlowLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -174,7 +207,6 @@ namespace TelegramProxyParser
                 WrapContents = false
             };
 
-            // Панель загрузки
             loadingPanel = new Panel()
             {
                 Dock = DockStyle.Fill,
@@ -202,7 +234,6 @@ namespace TelegramProxyParser
             loadingPanel.Controls.Add(progressBar);
             loadingPanel.Controls.Add(lblLoadingProgress);
 
-            // Панель статуса
             var statusPanel = new Panel()
             {
                 Dock = DockStyle.Bottom,
@@ -211,7 +242,6 @@ namespace TelegramProxyParser
                 Padding = new Padding(10)
             };
 
-            // Добавляем тень сверху панели статуса
             statusPanel.Paint += (sender, e) =>
             {
                 using (var pen = new Pen(Color.FromArgb(224, 227, 234), 1))
@@ -230,26 +260,212 @@ namespace TelegramProxyParser
             };
 
             statusPanel.Controls.Add(lblStatus);
-            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, lblProgramName });
+            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, btnLoadCustom, btnSettings, lblProgramName });
             this.Controls.AddRange(new Control[] { flowProxies, loadingPanel, statusPanel, topPanel });
         }
 
-        // Показываем приветственное сообщение
+        private void BtnSettings_Click(object sender, EventArgs e)
+        {
+            Form settingsForm = new Form();
+            settingsForm.Text = "Настройки";
+            settingsForm.Size = new Size(420, 350);
+            settingsForm.StartPosition = FormStartPosition.CenterParent;
+            settingsForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+            settingsForm.MaximizeBox = false;
+            settingsForm.MinimizeBox = false;
+            settingsForm.BackColor = Color.White;
+
+            Label lblTimeout = new Label()
+            {
+                Text = "Таймаут проверки (мс):",
+                Location = new Point(25, 25),
+                Size = new Size(170, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 59, 75)
+            };
+
+            ComboBox cmbTimeout = new ComboBox()
+            {
+                Location = new Point(210, 23),
+                Size = new Size(120, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 10)
+            };
+            cmbTimeout.Items.AddRange(new object[] { "300", "500", "750", "1000" });
+            cmbTimeout.SelectedItem = currentTimeout.ToString();
+
+            Label lblConcurrency = new Label()
+            {
+                Text = "Параллельных потоков:",
+                Location = new Point(25, 70),
+                Size = new Size(170, 25),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                ForeColor = Color.FromArgb(52, 59, 75)
+            };
+
+            ComboBox cmbConcurrency = new ComboBox()
+            {
+                Location = new Point(210, 68),
+                Size = new Size(120, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 10)
+            };
+            cmbConcurrency.Items.AddRange(new object[] { "5", "10", "15", "20" });
+            cmbConcurrency.SelectedItem = currentConcurrency.ToString();
+
+            Label lblInfo = new Label()
+            {
+                Text = "⚠️ Примечание:\n\n• Меньший таймаут = быстрее проверка,\n  но меньше рабочих прокси\n\n• Больше потоков = быстрее проверка,\n  но выше нагрузка на сеть",
+                Location = new Point(25, 115),
+                Size = new Size(360, 120),
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.FromArgb(114, 118, 125)
+            };
+
+            Button btnSave = new Button()
+            {
+                Text = "Сохранить",
+                Location = new Point(95, 260),
+                Size = new Size(100, 35),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(46, 204, 113),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSave.FlatAppearance.BorderSize = 0;
+            btnSave.Click += (s, ev) =>
+            {
+                currentTimeout = int.Parse(cmbTimeout.SelectedItem.ToString());
+                currentConcurrency = int.Parse(cmbConcurrency.SelectedItem.ToString());
+                proxyChecker.SetTimeout(currentTimeout);
+                lblStatus.Text = $"Настройки сохранены: таймаут {currentTimeout} мс, потоков: {currentConcurrency}";
+                settingsForm.Close();
+            };
+
+            Button btnCancel = new Button()
+            {
+                Text = "Отмена",
+                Location = new Point(215, 260),
+                Size = new Size(100, 35),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(149, 165, 166),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            btnCancel.Click += (s, ev) => settingsForm.Close();
+
+            settingsForm.Controls.AddRange(new Control[] { lblTimeout, cmbTimeout, lblConcurrency, cmbConcurrency, lblInfo, btnSave, btnCancel });
+            settingsForm.ShowDialog();
+        }
+
+        private async void BtnLoadCustom_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Title = "Выберите файл со списком прокси";
+                openFileDialog.Filter = "Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*";
+                openFileDialog.FilterIndex = 1;
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        string[] lines = System.IO.File.ReadAllLines(openFileDialog.FileName);
+                        List<string> proxyLines = new List<string>();
+
+                        foreach (string line in lines)
+                        {
+                            string trimmedLine = line.Trim();
+                            if (!string.IsNullOrWhiteSpace(trimmedLine) && !trimmedLine.StartsWith("//") && !trimmedLine.StartsWith("#"))
+                            {
+                                proxyLines.Add(trimmedLine);
+                            }
+                        }
+
+                        if (proxyLines.Count == 0)
+                        {
+                            MessageBox.Show("Файл не содержит ссылок на прокси!", "Информация",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
+                        await LoadCustomProxies(proxyLines, System.IO.Path.GetFileName(openFileDialog.FileName));
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка чтения файла: {ex.Message}", "Ошибка",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private async Task LoadCustomProxies(List<string> proxyLines, string fileName)
+        {
+            try
+            {
+                if (cts != null)
+                {
+                    cts.Cancel();
+                    cts.Dispose();
+                }
+                cts = new CancellationTokenSource();
+
+                SetControlsEnabled(false);
+                ShowLoading(true, "Загрузка списка прокси...");
+
+                flowProxies.Controls.Clear();
+                allProxies.Clear();
+                workingProxies.Clear();
+
+                lblStatus.Text = $"Загрузка прокси из файла: {fileName}...";
+
+                allProxies = ParseSpecialProxyFormat(proxyLines);
+
+                if (allProxies.Count == 0)
+                {
+                    MessageBox.Show("Не удалось распарсить прокси!\n\n" +
+                        "Убедитесь, что файл содержит ссылки в формате:\n" +
+                        "https://t.me/proxy?server=IP&port=ПОРТ&secret=СЕКРЕТ",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                await CheckAllProxies(fileName);
+                ShowResult();
+            }
+            catch (OperationCanceledException)
+            {
+                lblStatus.Text = "Операция отменена";
+                ShowLoading(false);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                lblStatus.Text = $"Ошибка: {ex.Message}";
+                ShowLoading(false);
+            }
+            finally
+            {
+                SetControlsEnabled(true);
+            }
+        }
+
         private void ShowWelcomeMessage()
         {
-            // Очищаем панель
             flowProxies.Controls.Clear();
 
-            // Создаем панель с информацией
             var welcomePanel = new Panel()
             {
                 Width = flowProxies.Width - 40,
-                Height = 650,  // Увеличена высота, чтобы кнопка точно поместилась
+                Height = 680,
                 BackColor = Color.White,
                 Margin = new Padding(0, 20, 0, 0)
             };
 
-            // Заголовок
             var titleLabel = new Label()
             {
                 Text = "КАК ПОЛЬЗОВАТЬСЯ:",
@@ -261,30 +477,27 @@ namespace TelegramProxyParser
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-
-
-
-            // Пошаговая инструкция 
             var stepsLabel = new Label()
             {
                 Text = "1️⃣ Кнопка «ЕВРОПА» - Маскировка трафика под Google, Amazon, Microsoft и др.\n\n" +
                        "2️⃣ Кнопка «РОССИЯ» - Маскировка трафика под Yandex, VK, Mail.ru, Gosuslugi и др.\n\n" +
                        "3️⃣ Кнопка «SurfboardV2ray» - Большой список прокси\n\n" +
-                       "4️⃣ Дождитесь проверки всех прокси\n\n" +
-                       "5️⃣ Нажмите на любую рабочую прокси для автоматического открытия в Telegram\n",
+                       "4️⃣ Кнопка «СВОЙ СПИСОК» - Загрузить свой .txt файл с прокси\n\n" +
+                       "5️⃣ Дождитесь проверки всех прокси\n\n" +
+                       "6️⃣ Нажмите на любую рабочую прокси для открытия в Telegram\n\n" +
+                       "⚙️ Кнопка «Настройки» - выберите таймаут и количество потоков",
                 Location = new Point(35, 100),
                 Width = welcomePanel.Width - 60,
-                Height = 200,
+                Height = 340,
                 Font = new Font("Segoe UI", 10),
                 ForeColor = Color.FromArgb(31, 31, 31),
                 TextAlign = ContentAlignment.TopLeft
             };
 
-            // Кнопка GitHub в приветственном окне
             Button btnGitHubWelcome = new Button()
             {
                 Text = "GitHub",
-                Location = new Point(welcomePanel.Width / 2 - 65, 600),
+                Location = new Point(welcomePanel.Width / 2 - 65, 630),
                 Size = new Size(130, 35),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(36, 41, 46),
@@ -311,11 +524,7 @@ namespace TelegramProxyParser
                 }
             };
 
-            // Добавляем все элементы
-            welcomePanel.Controls.AddRange(new Control[] {
-        titleLabel, stepsLabel, btnGitHubWelcome
-    });
-
+            welcomePanel.Controls.AddRange(new Control[] { titleLabel, stepsLabel, btnGitHubWelcome });
             flowProxies.Controls.Add(welcomePanel);
         }
 
@@ -348,7 +557,6 @@ namespace TelegramProxyParser
                 SetControlsEnabled(false);
                 ShowLoading(true, "Загрузка списка прокси...");
 
-                // Очищаем панель
                 flowProxies.Controls.Clear();
                 allProxies.Clear();
                 workingProxies.Clear();
@@ -405,14 +613,11 @@ namespace TelegramProxyParser
                 SetControlsEnabled(false);
                 ShowLoading(true, "Загрузка списка прокси...");
 
-                // Очищаем панель
                 flowProxies.Controls.Clear();
                 allProxies.Clear();
                 workingProxies.Clear();
 
                 lblStatus.Text = $"Загрузка прокси {region}...";
-
-                // Загружаем содержимое файла
                 var proxyLines = await proxyParser.LoadProxiesFromUrlAsync(url);
 
                 if (proxyLines.Count == 0)
@@ -422,8 +627,6 @@ namespace TelegramProxyParser
                 }
 
                 lblStatus.Text = $"Парсинг прокси {region} (специальный формат)...";
-
-                // Парсим специальный формат ссылок
                 allProxies = ParseSpecialProxyFormat(proxyLines);
 
                 if (allProxies.Count == 0)
@@ -463,27 +666,20 @@ namespace TelegramProxyParser
 
                 try
                 {
-                    // Пропускаем HTML-теги и пустые строки
                     if (line.TrimStart().StartsWith("<") || line.Contains("<!DOCTYPE"))
                         continue;
 
-                    // Ищем ссылку вида https://t.me/proxy?server=...&port=...&secret=...
                     if (line.Contains("t.me/proxy") && line.Contains("server="))
                     {
                         var proxy = ParseTelegramProxyLink(line);
                         if (proxy != null)
-                        {
                             proxies.Add(proxy);
-                        }
                     }
-                    // Альтернативный формат: просто ссылка без лишнего текста
                     else if (line.Trim().StartsWith("https://t.me/proxy?"))
                     {
                         var proxy = ParseTelegramProxyLink(line.Trim());
                         if (proxy != null)
-                        {
                             proxies.Add(proxy);
-                        }
                     }
                 }
                 catch (Exception ex)
@@ -499,7 +695,6 @@ namespace TelegramProxyParser
         {
             try
             {
-                // Извлекаем параметры из URL
                 var serverMatch = Regex.Match(url, @"server=([^&]+)");
                 var portMatch = Regex.Match(url, @"port=(\d+)");
                 var secretMatch = Regex.Match(url, @"secret=([^&]+)");
@@ -513,8 +708,6 @@ namespace TelegramProxyParser
                     if (int.TryParse(portStr, out int port))
                     {
                         string proxyType = DetermineProxyType(secret);
-
-                        // Формируем ссылку в формате tg:// для Telegram
                         string tgProxyUrl = $"tg://proxy?server={Uri.EscapeDataString(server)}&port={port}&secret={Uri.EscapeDataString(secret)}";
 
                         return new ProxyInfo
@@ -541,19 +734,15 @@ namespace TelegramProxyParser
             if (string.IsNullOrEmpty(secret))
                 return "Unknown";
 
-            // Простая логика определения типа на основе секрета
             if (secret.Length >= 2)
             {
                 string prefix = secret.Substring(0, 2).ToLower();
                 if (prefix == "ee" || prefix == "dd")
                     return "Fake TLS";
-                else if (prefix == "ee" && secret.Length > 10)
-                    return "Secure";
             }
 
             return "Classic";
         }
-
 
         private async Task CheckAllProxies(string region)
         {
@@ -562,12 +751,11 @@ namespace TelegramProxyParser
             int failedConsecutive = 0;
             workingProxies = new List<ProxyInfo>();
 
-            // Динамическая настройка параллелизма
-            int currentConcurrency = 5; // Стартуем с 5
-            int maxConcurrency = 10; //Максимальное количство потоков (возможны недочеты при высоком значении)
-            int minConcurrency = 5; //Минимальное количество потоков
+            int concurrency = currentConcurrency;
+            int maxConcurrency = currentConcurrency;
+            int minConcurrency = Math.Max(1, currentConcurrency / 2);
 
-            using (var semaphore = new SemaphoreSlim(currentConcurrency))
+            using (var semaphore = new SemaphoreSlim(concurrency))
             {
                 var tasks = new List<Task>();
                 var progressUpdateInterval = TimeSpan.FromMilliseconds(100);
@@ -584,7 +772,8 @@ namespace TelegramProxyParser
                     {
                         try
                         {
-                            var result = await Task.Run(() => proxyChecker.CheckProxySync(proxy.Server, proxy.Port, proxy.Secret));
+                            var result = await proxyChecker.CheckProxyWithTimeoutAsync(
+                                proxy.Server, proxy.Port, proxy.Secret, currentTimeout);
 
                             proxy.IsWorking = result.IsWorking;
                             proxy.ProxyType = result.ProxyType;
@@ -596,24 +785,21 @@ namespace TelegramProxyParser
                                 lock (workingProxies)
                                 {
                                     workingProxies.Add(proxy);
-                                    failedConsecutive = 0; // Сброс счетчика ошибок
+                                    failedConsecutive = 0;
                                 }
 
-                                // Если находим рабочие прокси, можно увеличить параллелизм
-                                if (workingProxies.Count % 10 == 0 && currentConcurrency < maxConcurrency)
+                                if (workingProxies.Count % 10 == 0 && concurrency < maxConcurrency)
                                 {
-                                    currentConcurrency = Math.Min(maxConcurrency, currentConcurrency + 5);
-                                    semaphore.Release(); // Увеличиваем capacity
+                                    concurrency = Math.Min(maxConcurrency, concurrency + 5);
+                                    semaphore.Release();
                                 }
                             }
                             else
                             {
                                 failedConsecutive++;
-                                // Если много ошибок подряд, уменьшаем параллелизм
-                                if (failedConsecutive > 10 && currentConcurrency > minConcurrency)
+                                if (failedConsecutive > 10 && concurrency > minConcurrency)
                                 {
-                                    currentConcurrency = Math.Max(minConcurrency, currentConcurrency - 5);
-                                    // Забираем один слот обратно
+                                    concurrency = Math.Max(minConcurrency, concurrency - 5);
                                     await semaphore.WaitAsync();
                                     semaphore.Release();
                                 }
@@ -621,14 +807,13 @@ namespace TelegramProxyParser
 
                             int currentCompleted = Interlocked.Increment(ref completed);
 
-                            // Обновляем UI с ограничением по времени
                             var now = DateTime.Now;
                             if (now - lastProgressUpdate >= progressUpdateInterval || currentCompleted == total)
                             {
                                 lastProgressUpdate = now;
                                 BeginInvoke(new Action(() =>
                                 {
-                                    ShowLoading(true, $"Проверка прокси: {currentCompleted}/{total} (потоков: {currentConcurrency})");
+                                    ShowLoading(true, $"Проверка прокси: {currentCompleted}/{total} (потоков: {concurrency}, таймаут: {currentTimeout}мс)");
                                     lblStatus.Text = $"Проверка {region}: {currentCompleted}/{total} | Найдено рабочих: {workingProxies.Count}";
                                 }));
                             }
@@ -675,7 +860,6 @@ namespace TelegramProxyParser
             }
             else
             {
-                // СОРТИРУЕМ прокси по пингу (от меньшего к большему)
                 var sortedProxies = workingProxies.OrderBy(p => p.Ping <= 0 ? 0 : p.Ping).ToList();
 
                 foreach (var proxy in sortedProxies)
@@ -703,7 +887,7 @@ namespace TelegramProxyParser
             var panel = new Panel()
             {
                 Width = flowProxies.Width - 40,
-                Height = 200,
+                Height = 250,
                 BackColor = Color.White,
                 Margin = new Padding(0, 50, 0, 0)
             };
@@ -711,7 +895,7 @@ namespace TelegramProxyParser
             var messageLabel = new Label()
             {
                 Text = "РАБОЧИХ ПРОКСИ НЕ НАЙДЕНО",
-                Location = new Point(20, 60),
+                Location = new Point(20, 40),
                 Width = panel.Width - 40,
                 Height = 40,
                 Font = new Font("Tahoma", 14, FontStyle.Bold),
@@ -721,13 +905,18 @@ namespace TelegramProxyParser
 
             var hintLabel = new Label()
             {
-                Text = "Попробуйте выбрать другую категорию",
-                Location = new Point(20, 110),
+                Text = "Попробуйте:\n" +
+                       "• Выбрать другую категорию\n" +
+                       "• Увеличить таймаут в настройках\n" +
+                       "• Загрузить свой список прокси (кнопка «СВОЙ СПИСОК»)\n\n" +
+                       "Формат файла:\n" +
+                       "https://t.me/proxy?server=IP&port=ПОРТ&secret=СЕКРЕТ",
+                Location = new Point(20, 90),
                 Width = panel.Width - 40,
-                Height = 30,
-                Font = new Font("Tahoma", 11, FontStyle.Regular),
+                Height = 130,
+                Font = new Font("Tahoma", 10),
                 ForeColor = Color.FromArgb(114, 118, 125),
-                TextAlign = ContentAlignment.MiddleCenter
+                TextAlign = ContentAlignment.TopLeft
             };
 
             panel.Controls.AddRange(new Control[] { messageLabel, hintLabel });
@@ -832,6 +1021,11 @@ namespace TelegramProxyParser
                 {
                     lblLoadingProgress.Text = message;
 
+                    // Автоматически подгоняем ширину под текст
+                    lblLoadingProgress.AutoSize = true;
+                    lblLoadingProgress.MaximumSize = new Size(loadingPanel.Width - 40, 0);
+
+                    // Центрируем элементы
                     progressBar.Location = new Point(loadingPanel.Width / 2 - progressBar.Width / 2,
                                                     loadingPanel.Height / 2 - 30);
                     lblLoadingProgress.Location = new Point(loadingPanel.Width / 2 - lblLoadingProgress.Width / 2,
@@ -857,18 +1051,24 @@ namespace TelegramProxyParser
             btnProxyRU.Enabled = enabled;
             btnTest.Enabled = enabled;
             btnAbout.Enabled = enabled;
+            btnSettings.Enabled = enabled;
+            btnLoadCustom.Enabled = enabled;
 
             if (enabled)
             {
                 btnProxyEU.Text = "ЕВРОПА";
                 btnProxyRU.Text = "РОССИЯ";
                 btnTest.Text = "SurfboardV2ray";
+                btnSettings.Text = "⚙️ Настройки";
+                btnLoadCustom.Text = "📁 СВОЙ СПИСОК";
             }
             else
             {
                 btnProxyEU.Text = "⏳ ЗАГРУЗКА";
                 btnProxyRU.Text = "⏳ ЗАГРУЗКА";
                 btnTest.Text = "⏳ ЗАГРУЗКА";
+                btnSettings.Text = "⏳ НАСТРОЙКИ";
+                btnLoadCustom.Text = "⏳ ЗАГРУЗКА";
             }
         }
 
@@ -889,7 +1089,6 @@ namespace TelegramProxyParser
             }
         }
 
-        // АВТОМАТИЧЕСКАЯ ПРОВЕРКА ОБНОВЛЕНИЙ
         private async Task AutoCheckForUpdatesAsync()
         {
             try
@@ -946,17 +1145,15 @@ namespace TelegramProxyParser
 
         private void BtnAbout_Click(object sender, EventArgs e)
         {
-            // Создаем форму для отображения информации и кнопок доната
             Form aboutForm = new Form();
             aboutForm.Text = "О программе";
-            aboutForm.Size = new Size(480, 550);
+            aboutForm.Size = new Size(550, 580);
             aboutForm.StartPosition = FormStartPosition.CenterParent;
             aboutForm.FormBorderStyle = FormBorderStyle.FixedDialog;
             aboutForm.MaximizeBox = false;
             aboutForm.MinimizeBox = false;
             aboutForm.BackColor = Color.White;
 
-            // Информационная часть
             Label lblInfo = new Label()
             {
                 Text = $"Telegram Proxy Parser v{APP_VERSION}\n\n" +
@@ -964,21 +1161,23 @@ namespace TelegramProxyParser
                        "Источники:\n" +
                        "• Европа: Маскировка под Google, Amazon, Microsoft и др.\n" +
                        "• Россия: Маскировка под Yandex, VK, Mail.ru, Gosuslugi и др.\n" +
-                       "• SurfboardV2ray: Большой список прокси\n\n" +
+                       "• SurfboardV2ray: Большой список прокси\n" +
+                       "• СВОЙ СПИСОК: Загрузка своего .txt файла\n\n" +
                        "• Списки обновляются каждый час.\n" +
                        "• Доступность сервера не гарантирует его работоспособность!\n" +
-                       "• Они не дремлют... Но и мы не спим!\n\n",
+                       "• Они не дремлют... Но и мы не спим!\n\n" +
+                       $"Текущие настройки: таймаут {currentTimeout} мс, потоков: {currentConcurrency}\n" +
+                       "Настройки можно изменить, нажав кнопку «Настройки»",
                 Location = new Point(25, 20),
-                Size = new Size(430, 280),
+                Size = new Size(490, 350),
                 Font = new Font("Tahoma", 10),
                 TextAlign = ContentAlignment.TopLeft
             };
 
-            // Ссылка на Android версию
             LinkLabel lblAndroid = new LinkLabel()
             {
-                Text = "Скачать версию для Android",
-                Location = new Point(100, 300),
+                Text = "📱 Скачать версию для Android",
+                Location = new Point(125, 360),
                 Size = new Size(280, 30),
                 Font = new Font("Tahoma", 11, FontStyle.Bold | FontStyle.Underline),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -1001,11 +1200,10 @@ namespace TelegramProxyParser
                 }
             };
 
-            // Ссылка на GitHub win-версии
             LinkLabel lblGitHub = new LinkLabel()
             {
-                Text = "GitHub (Windows версия)",
-                Location = new Point(100, 330),
+                Text = "💻 GitHub (Windows версия)",
+                Location = new Point(125, 400),
                 Size = new Size(280, 30),
                 Font = new Font("Tahoma", 11, FontStyle.Bold | FontStyle.Underline),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -1028,30 +1226,27 @@ namespace TelegramProxyParser
                 }
             };
 
-            // Разделительная линия
             Panel separator = new Panel()
             {
-                Location = new Point(25, 400),
-                Size = new Size(430, 1),
+                Location = new Point(25, 440),
+                Size = new Size(490, 1),
                 BackColor = Color.FromArgb(224, 227, 234)
             };
 
-            // Надпись "Поддержать проект"
             Label lblSupport = new Label()
             {
-                Text = "Поддержать проект",
-                Location = new Point(25, 410),
-                Size = new Size(430, 30),
+                Text = "⭐ Поддержать проект",
+                Location = new Point(25, 460),
+                Size = new Size(490, 30),
                 Font = new Font("Tahoma", 11, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.FromArgb(52, 59, 75)
             };
 
-            // Кнопка GitHub В ОКНЕ СПРАВКИ
             Button btnGitHub = new Button()
             {
                 Text = "GitHub",
-                Location = new Point(175, 450),
+                Location = new Point(200, 500),
                 Size = new Size(130, 35),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(36, 41, 46),
@@ -1078,10 +1273,7 @@ namespace TelegramProxyParser
                 }
             };
 
-            // Добавляем все элементы на форму
             aboutForm.Controls.AddRange(new Control[] { lblInfo, lblAndroid, lblGitHub, separator, lblSupport, btnGitHub });
-
-            // Показываем форму
             aboutForm.ShowDialog();
         }
     }
