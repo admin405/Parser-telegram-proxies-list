@@ -80,51 +80,36 @@ namespace TelegramProxyParser.Services
         }
 
         // Синхронная версия
-        public ProxyCheckResult CheckProxySync(string server, int port, string secret)
+        public ProxyCheckResult CheckProxyWindows7Compatible(string server, int port, string secret)
         {
-            var result = new ProxyCheckResult
-            {
-                StartTime = DateTime.Now,
-                ProxyType = DetectProxyType(secret)
-            };
-
+            var result = new ProxyCheckResult();
             TcpClient tcpClient = null;
 
             try
             {
                 tcpClient = new TcpClient();
-                var connectDone = new ManualResetEvent(false);
 
-                var asyncResult = tcpClient.BeginConnect(server, port,
-                    (ar) => { connectDone.Set(); }, null);
-
-                bool connected = connectDone.WaitOne(defaultTimeout);
-
-                if (connected)
+                // Использовать синхронный Connect с таймаутом через Thread
+                var connectThread = new Thread(() =>
                 {
-                    try
-                    {
-                        tcpClient.EndConnect(asyncResult);
-                        result.IsWorking = true;
-                        result.ResponseTime = (int)(DateTime.Now - result.StartTime).TotalMilliseconds;
-                    }
-                    catch (Exception ex)
-                    {
-                        result.ErrorMessage = ex.Message;
-                        result.IsWorking = false;
-                    }
+                    tcpClient.Connect(server, port);
+                });
+
+                connectThread.Start();
+                bool connected = connectThread.Join(defaultTimeout);
+
+                if (connected && tcpClient.Connected)
+                {
+                    result.IsWorking = true;
+                    result.ResponseTime = (int)(DateTime.Now - result.StartTime).TotalMilliseconds;
                 }
                 else
                 {
-                    result.ErrorMessage = $"Таймаут подключения ({defaultTimeout}мс)";
+                    result.ErrorMessage = "Timeout";
                     result.IsWorking = false;
-                    tcpClient.Close();
+                    if (connectThread.IsAlive)
+                        connectThread.Abort();
                 }
-            }
-            catch (SocketException ex)
-            {
-                result.ErrorMessage = ex.Message.Contains("refused") ? "Порт закрыт" : $"Ошибка сокета: {ex.Message}";
-                result.IsWorking = false;
             }
             catch (Exception ex)
             {
@@ -133,8 +118,7 @@ namespace TelegramProxyParser.Services
             }
             finally
             {
-                try { tcpClient?.Close(); } catch { }
-                try { tcpClient?.Dispose(); } catch { }
+                tcpClient?.Close();
             }
 
             return result;
@@ -145,7 +129,7 @@ namespace TelegramProxyParser.Services
             return await CheckProxyWithTimeoutAsync(server, port, secret, 200);
         }
 
-        private string DetectProxyType(string secret)
+        public string DetectProxyType(string secret)
         {
             if (string.IsNullOrEmpty(secret))
                 return "Classic";
