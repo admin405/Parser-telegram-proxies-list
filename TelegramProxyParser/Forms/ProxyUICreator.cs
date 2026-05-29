@@ -33,13 +33,12 @@ namespace TelegramProxyParser.UI.Helpers
                        "• Выбрать другую категорию\n" +
                        "• Увеличить таймаут в настройках\n" +
                        "\n"+
-                       "\n"+
                        "• Загрузить свой список прокси (кнопка «СВОЙ СПИСОК»)\n\n" +
                        "Формат файла:\n" +
                        "https://t.me/proxy?server=IP&port=ПОРТ&secret=СЕКРЕТ",
                 Location = new Point(20, 90),
                 Width = panel.Width - 40,
-                Height = 130,
+                Height = 160,
                 Font = new Font("Tahoma", 10),
                 ForeColor = Color.FromArgb(114, 118, 125),
                 TextAlign = ContentAlignment.TopLeft

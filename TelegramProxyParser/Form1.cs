@@ -42,7 +42,7 @@ namespace TelegramProxyParser
         private ProxyLoadService proxyLoadService;
         private CancellationTokenSource cts;
 
-        private const string APP_VERSION = "1.8";
+        private const string APP_VERSION = "1.8.1";
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
         private const string PROXY_RU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt";
         private const string PROXY_TEST_URL = "https://raw.githubusercontent.com/Surfboardv2ray/TGProto/refs/heads/main/proxies-tested.txt";
