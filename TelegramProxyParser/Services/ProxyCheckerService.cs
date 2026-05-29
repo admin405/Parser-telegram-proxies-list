@@ -15,7 +15,7 @@ namespace TelegramProxyParser.Services
             defaultTimeout = timeoutMs;
         }
 
-        // Надежная версия с ManualResetEvent для всех версий .NET
+        // Асинхронная проверка с таймаутом
         public async Task<ProxyCheckResult> CheckProxyWithTimeoutAsync(string server, int port, string secret, int timeoutMs)
         {
             return await Task.Run(() =>
@@ -79,17 +79,21 @@ namespace TelegramProxyParser.Services
             });
         }
 
-        // Синхронная версия
+        // Синхронная версия для Windows 7
         public ProxyCheckResult CheckProxyWindows7Compatible(string server, int port, string secret)
         {
-            var result = new ProxyCheckResult();
+            var result = new ProxyCheckResult
+            {
+                StartTime = DateTime.Now,
+                ProxyType = DetectProxyType(secret)
+            };
+
             TcpClient tcpClient = null;
 
             try
             {
                 tcpClient = new TcpClient();
 
-                // Использовать синхронный Connect с таймаутом через Thread
                 var connectThread = new Thread(() =>
                 {
                     tcpClient.Connect(server, port);
@@ -129,6 +133,7 @@ namespace TelegramProxyParser.Services
             return await CheckProxyWithTimeoutAsync(server, port, secret, 200);
         }
 
+        // Публичный метод определения типа прокси
         public string DetectProxyType(string secret)
         {
             if (string.IsNullOrEmpty(secret))

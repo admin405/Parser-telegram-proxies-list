@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using TelegramProxyParser.Models;
 
@@ -19,17 +18,15 @@ namespace TelegramProxyParser.Services
             httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
-        public async Task<List<string>> LoadProxiesFromUrlAsync(string url, CancellationToken cancellationToken = default)
+        // Загрузка с фильтрацией (только валидные ссылки)
+        public async Task<List<string>> LoadProxiesFromUrlAsync(string url)
         {
             try
             {
-                // Создаем запрос с возможностью отмены
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
-                using (var response = await httpClient.SendAsync(request, cancellationToken))
+                using (var response = await httpClient.SendAsync(request))
                 {
                     response.EnsureSuccessStatusCode();
-
-                    // ReadAsStringAsync без CancellationToken в .NET Framework
                     var content = await response.Content.ReadAsStringAsync();
 
                     var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -38,7 +35,6 @@ namespace TelegramProxyParser.Services
                     foreach (var line in lines)
                     {
                         var trimmedLine = line.Trim();
-                        // Исправлено: теперь поддерживаются оба формата
                         if (trimmedLine.StartsWith("tg://proxy", StringComparison.OrdinalIgnoreCase) ||
                             trimmedLine.StartsWith("https://t.me/proxy", StringComparison.OrdinalIgnoreCase))
                         {
@@ -46,14 +42,9 @@ namespace TelegramProxyParser.Services
                         }
                     }
 
-                    // Удаляем дубликаты
                     var uniqueProxies = new HashSet<string>(proxies);
                     return new List<string>(uniqueProxies);
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
             }
             catch (Exception ex)
             {
@@ -61,13 +52,13 @@ namespace TelegramProxyParser.Services
             }
         }
 
-        // Новый метод для загрузки прокси без фильтрации (для тестового источника)
-        public async Task<List<string>> LoadRawProxiesFromUrlAsync(string url, CancellationToken cancellationToken = default)
+        // Загрузка сырых данных (без фильтрации, для HTML-страниц)
+        public async Task<List<string>> LoadRawProxiesFromUrlAsync(string url)
         {
             try
             {
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
-                using (var response = await httpClient.SendAsync(request, cancellationToken))
+                using (var response = await httpClient.SendAsync(request))
                 {
                     response.EnsureSuccessStatusCode();
                     var content = await response.Content.ReadAsStringAsync();
@@ -78,7 +69,6 @@ namespace TelegramProxyParser.Services
                     foreach (var line in lines)
                     {
                         var trimmedLine = line.Trim();
-                        // Пропускаем пустые строки и HTML-теги
                         if (!string.IsNullOrEmpty(trimmedLine) &&
                             !trimmedLine.StartsWith("<") &&
                             !trimmedLine.StartsWith("<!DOCTYPE"))
@@ -87,14 +77,9 @@ namespace TelegramProxyParser.Services
                         }
                     }
 
-                    // Удаляем дубликаты
                     var uniqueProxies = new HashSet<string>(proxies);
                     return new List<string>(uniqueProxies);
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
             }
             catch (Exception ex)
             {
@@ -102,51 +87,101 @@ namespace TelegramProxyParser.Services
             }
         }
 
-        public List<ProxyInfo> ParseProxyUrls(List<string> proxyUrls)
+        // УНИВЕРСАЛЬНЫЙ МЕТОД ПАРСИНГА - работает с любым форматом и мусором
+        public List<ProxyInfo> ParseProxyLines(List<string> lines, ProxyCheckerService checkerService = null)
         {
             var proxies = new List<ProxyInfo>();
 
-            foreach (var url in proxyUrls)
+            foreach (var line in lines)
             {
-                var proxy = ParseProxyUrl(url);
-                if (proxy != null && !string.IsNullOrEmpty(proxy.Server))
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                try
                 {
-                    proxies.Add(proxy);
+                    string trimmedLine = line.Trim();
+
+                    // Пропускаем явный мусор
+                    if (IsGarbageLine(trimmedLine))
+                        continue;
+
+                    // Проверяем наличие ключевых параметров
+                    if (!HasProxyParameters(trimmedLine))
+                        continue;
+
+                    // Извлекаем параметры
+                    string server = ExtractParameter(trimmedLine, "server");
+                    string portStr = ExtractParameter(trimmedLine, "port");
+                    string secret = ExtractParameter(trimmedLine, "secret");
+
+                    if (string.IsNullOrEmpty(server) ||
+                        string.IsNullOrEmpty(portStr) ||
+                        string.IsNullOrEmpty(secret))
+                        continue;
+
+                    if (int.TryParse(portStr, out int port))
+                    {
+                        string tgProxyUrl = $"tg://proxy?server={Uri.EscapeDataString(server)}&port={port}&secret={Uri.EscapeDataString(secret)}";
+
+                        var proxy = new ProxyInfo
+                        {
+                            Server = server,
+                            Port = port,
+                            Secret = secret,
+                            OriginalUrl = tgProxyUrl,
+                            ProxyType = checkerService?.DetectProxyType(secret) ?? "Unknown"
+                        };
+
+                        proxies.Add(proxy);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Ошибка парсинга строки: {line}, {ex.Message}");
                 }
             }
 
             return proxies;
         }
 
-        private ProxyInfo ParseProxyUrl(string proxyUrl)
+        // Для обратной совместимости
+        public List<ProxyInfo> ParseProxyUrls(List<string> proxyUrls)
         {
-            var proxyInfo = new ProxyInfo
-            {
-                OriginalUrl = proxyUrl,
-                Port = 443
+            return ParseProxyLines(proxyUrls, null);
+        }
+
+        private bool IsGarbageLine(string line)
+        {
+            if (line.Length < 20) return true;
+
+            string[] garbageMarkers = {
+                "<", "<!DOCTYPE", "<!--", "/", "*", "```",
+                "null", "undefined", "NaN", "function", "var ",
+                "const ", "let ", "return", "console.", "window.",
+                "===", "---", "___", ">>>", "<<<"
             };
 
-            try
+            foreach (var marker in garbageMarkers)
             {
-                var serverMatch = Regex.Match(proxyUrl, @"server=([^&]+)");
-                if (serverMatch.Success)
-                    proxyInfo.Server = Uri.UnescapeDataString(serverMatch.Groups[1].Value);
-
-                var portMatch = Regex.Match(proxyUrl, @"port=(\d+)");
-                if (portMatch.Success)
-                    proxyInfo.Port = int.Parse(portMatch.Groups[1].Value);
-
-                var secretMatch = Regex.Match(proxyUrl, @"secret=([^&]+)");
-                if (secretMatch.Success)
-                    proxyInfo.Secret = secretMatch.Groups[1].Value;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Parse error for {proxyUrl}: {ex.Message}");
-                return null;
+                if (line.StartsWith(marker)) return true;
+                if (line.Contains(marker) && line.Length < 50) return true;
             }
 
-            return proxyInfo;
+            return false;
+        }
+
+        private bool HasProxyParameters(string line)
+        {
+            return line.Contains("server=") &&
+                   line.Contains("port=") &&
+                   line.Contains("secret=");
+        }
+
+        private string ExtractParameter(string text, string paramName)
+        {
+            string pattern = $@"{paramName}=([^&\s]+)";
+            var match = Regex.Match(text, pattern);
+            return match.Success ? Uri.UnescapeDataString(match.Groups[1].Value) : null;
         }
     }
 }

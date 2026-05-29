@@ -40,7 +40,6 @@ namespace TelegramProxyParser
         private ProxyParserService proxyParser;
         private ProxyCheckerService proxyChecker;
         private ProxyLoadService proxyLoadService;
-        private CancellationTokenSource cts;
 
         private const string APP_VERSION = "1.8.1";
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
@@ -71,7 +70,6 @@ namespace TelegramProxyParser
             proxyChecker.SetTimeout(currentTimeout);
             allProxies = new List<ProxyInfo>();
             workingProxies = new List<ProxyInfo>();
-            cts = null;
         }
 
         private void InitializeComponent()
@@ -92,7 +90,6 @@ namespace TelegramProxyParser
                 Padding = new Padding(15, 10, 15, 10)
             };
 
-            // Кнопка Европа
             btnProxyEU = new Button()
             {
                 Text = "ЕВРОПА",
@@ -109,7 +106,6 @@ namespace TelegramProxyParser
             btnProxyEU.FlatAppearance.MouseDownBackColor = Color.FromArgb(33, 148, 82);
             btnProxyEU.Click += BtnProxyEU_Click;
 
-            // Кнопка Россия
             btnProxyRU = new Button()
             {
                 Text = "РОССИЯ",
@@ -126,7 +122,6 @@ namespace TelegramProxyParser
             btnProxyRU.FlatAppearance.MouseDownBackColor = Color.FromArgb(31, 97, 141);
             btnProxyRU.Click += BtnProxyRU_Click;
 
-            // Кнопка SurfboardV2ray
             btnTest = new Button()
             {
                 Text = "SurfboardV2ray",
@@ -143,7 +138,6 @@ namespace TelegramProxyParser
             btnTest.FlatAppearance.MouseDownBackColor = Color.FromArgb(127, 58, 156);
             btnTest.Click += BtnTest_Click;
 
-            // Кнопка Справка
             btnAbout = new Button()
             {
                 Text = "СПРАВКА",
@@ -160,7 +154,6 @@ namespace TelegramProxyParser
             btnAbout.FlatAppearance.MouseDownBackColor = Color.FromArgb(108, 122, 122);
             btnAbout.Click += BtnAbout_Click;
 
-            // Кнопка загрузки своего списка
             btnLoadCustom = new Button()
             {
                 Text = "📁 СВОЙ СПИСОК",
@@ -177,7 +170,6 @@ namespace TelegramProxyParser
             btnLoadCustom.FlatAppearance.MouseDownBackColor = Color.FromArgb(128, 58, 156);
             btnLoadCustom.Click += BtnLoadCustom_Click;
 
-            // Название программы
             lblProgramName = new Label()
             {
                 Text = $"Парсер прокси Telegram v{APP_VERSION}",
@@ -188,7 +180,6 @@ namespace TelegramProxyParser
                 TextAlign = ContentAlignment.MiddleRight
             };
 
-            // Кнопка Настройки
             btnSettings = new Button()
             {
                 Text = "⚙️ Настройки",
@@ -349,13 +340,6 @@ namespace TelegramProxyParser
         {
             try
             {
-                if (cts != null)
-                {
-                    cts.Cancel();
-                    cts.Dispose();
-                }
-                cts = new CancellationTokenSource();
-
                 SetControlsEnabled(false);
                 ShowLoading(true, "Загрузка списка прокси...");
 
@@ -378,19 +362,8 @@ namespace TelegramProxyParser
                     return;
                 }
 
-                // Определяем типы прокси через checker
-                foreach (var proxy in allProxies)
-                {
-                    proxy.ProxyType = proxyChecker.DetectProxyType(proxy.Secret);
-                }
-
                 await CheckAllProxies(fileName);
                 ShowResult();
-            }
-            catch (OperationCanceledException)
-            {
-                lblStatus.Text = "Операция отменена";
-                ResetToWelcomeState();
             }
             catch (Exception ex)
             {
@@ -405,30 +378,23 @@ namespace TelegramProxyParser
 
         private async void BtnProxyEU_Click(object sender, EventArgs e)
         {
-            await LoadAndCheckProxies(PROXY_EU_URL, "ЕВРОПА", false);
+            await LoadAndCheckProxies(PROXY_EU_URL, "ЕВРОПА");
         }
 
         private async void BtnProxyRU_Click(object sender, EventArgs e)
         {
-            await LoadAndCheckProxies(PROXY_RU_URL, "РОССИЯ", false);
+            await LoadAndCheckProxies(PROXY_RU_URL, "РОССИЯ");
         }
 
         private async void BtnTest_Click(object sender, EventArgs e)
         {
-            await LoadAndCheckProxies(PROXY_TEST_URL, "Surfboardv2ray", true);
+            await LoadAndCheckProxies(PROXY_TEST_URL, "Surfboardv2ray");
         }
 
-        private async Task LoadAndCheckProxies(string url, string region, bool isRawFormat)
+        private async Task LoadAndCheckProxies(string url, string region)
         {
             try
             {
-                if (cts != null)
-                {
-                    cts.Cancel();
-                    cts.Dispose();
-                }
-                cts = new CancellationTokenSource();
-
                 SetControlsEnabled(false);
                 ShowLoading(true, "Загрузка списка прокси...");
 
@@ -438,14 +404,7 @@ namespace TelegramProxyParser
 
                 lblStatus.Text = $"Загрузка прокси {region}...";
 
-                if (isRawFormat)
-                {
-                    allProxies = await proxyLoadService.LoadRawProxiesAsync(url, cts.Token);
-                }
-                else
-                {
-                    allProxies = await proxyLoadService.LoadStandardProxiesAsync(url, cts.Token);
-                }
+                allProxies = await proxyLoadService.LoadProxiesFromUrlAsync(url);
 
                 if (allProxies.Count == 0)
                 {
@@ -454,19 +413,8 @@ namespace TelegramProxyParser
                     return;
                 }
 
-                // Определяем типы прокси через checker
-                foreach (var proxy in allProxies)
-                {
-                    proxy.ProxyType = proxyChecker.DetectProxyType(proxy.Secret);
-                }
-
                 await CheckAllProxies(region);
                 ShowResult();
-            }
-            catch (OperationCanceledException)
-            {
-                lblStatus.Text = "Операция отменена";
-                ResetToWelcomeState();
             }
             catch (Exception ex)
             {
@@ -498,10 +446,7 @@ namespace TelegramProxyParser
 
                 foreach (var proxy in allProxies)
                 {
-                    if (cts.Token.IsCancellationRequested)
-                        break;
-
-                    await semaphore.WaitAsync(cts.Token);
+                    await semaphore.WaitAsync();
 
                     tasks.Add(Task.Run(async () =>
                     {
@@ -557,7 +502,7 @@ namespace TelegramProxyParser
                         {
                             semaphore.Release();
                         }
-                    }, cts.Token));
+                    }));
                 }
 
                 await Task.WhenAll(tasks);
@@ -635,7 +580,6 @@ namespace TelegramProxyParser
                 if (message != null)
                 {
                     lblLoadingProgress.Text = message;
-
                     lblLoadingProgress.AutoSize = true;
                     lblLoadingProgress.MaximumSize = new Size(loadingPanel.Width - 40, 0);
 
