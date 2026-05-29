@@ -30,6 +30,7 @@ namespace TelegramProxyParser
         private Panel loadingPanel;
         private Label lblLoadingProgress;
         private ProgressBar progressBar;
+        private Button btnShare;
 
         // Текущие настройки
         private int currentTimeout = 300;
@@ -41,7 +42,7 @@ namespace TelegramProxyParser
         private ProxyCheckerService proxyChecker;
         private ProxyLoadService proxyLoadService;
 
-        private const string APP_VERSION = "1.8.1";
+        private const string APP_VERSION = "1.9";
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
         private const string PROXY_RU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt";
         private const string PROXY_TEST_URL = "https://raw.githubusercontent.com/Surfboardv2ray/TGProto/refs/heads/main/proxies-tested.txt";
@@ -196,6 +197,8 @@ namespace TelegramProxyParser
             btnSettings.FlatAppearance.MouseDownBackColor = Color.FromArgb(36, 51, 66);
             btnSettings.Click += BtnSettings_Click;
 
+            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, btnLoadCustom, btnSettings, lblProgramName });
+
             flowProxies = new FlowLayoutPanel()
             {
                 Dock = DockStyle.Fill,
@@ -233,10 +236,11 @@ namespace TelegramProxyParser
             loadingPanel.Controls.Add(progressBar);
             loadingPanel.Controls.Add(lblLoadingProgress);
 
+            // Статусная панель
             var statusPanel = new Panel()
             {
                 Dock = DockStyle.Bottom,
-                Height = 40,
+                Height = 30,
                 BackColor = Color.FromArgb(255, 255, 255),
                 Padding = new Padding(10)
             };
@@ -251,16 +255,51 @@ namespace TelegramProxyParser
 
             lblStatus = new Label()
             {
-                Location = new Point(10, 10),
-                Size = new Size(710, 25),
+                Location = new Point(10, 6),
+                AutoSize = true,
                 Font = new Font("Tahoma", 9, FontStyle.Regular),
                 ForeColor = Color.FromArgb(114, 118, 125),
                 Text = "Готов к работе"
             };
 
             statusPanel.Controls.Add(lblStatus);
-            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, btnLoadCustom, btnSettings, lblProgramName });
+
+            // Плавающая кнопка - снизу по центру
+            btnShare = new Button()
+            {
+                Text = "СКОПИРОВАТЬ",
+                Size = new Size(180, 45),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(144, 212, 19),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Visible = false
+            };
+            btnShare.FlatAppearance.BorderSize = 0;
+            btnShare.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 174, 96);
+            btnShare.FlatAppearance.MouseDownBackColor = Color.FromArgb(33, 148, 82);
+            btnShare.Click += BtnShare_Click;
+
+            // Добавляем все панели
             this.Controls.AddRange(new Control[] { flowProxies, loadingPanel, statusPanel, topPanel });
+            this.Controls.Add(btnShare);
+
+            // Устанавливаем позицию кнопки по центру внизу
+            btnShare.Location = new Point((this.ClientSize.Width - btnShare.Width) / 2,
+                                           this.ClientSize.Height - btnShare.Height - 55);
+
+            this.Resize += Form1_Resize;
+        }
+
+        private void Form1_Resize(object sender, EventArgs e)
+        {
+            if (btnShare != null && btnShare.Visible)
+            {
+                btnShare.Location = new Point((this.ClientSize.Width - btnShare.Width) / 2,
+                                               this.ClientSize.Height - btnShare.Height - 55);
+                btnShare.BringToFront();
+            }
         }
 
         private void ShowWelcomeMessage()
@@ -275,6 +314,7 @@ namespace TelegramProxyParser
             ShowWelcomeMessage();
             lblStatus.Text = "Готов к работе";
             ShowLoading(false);
+            btnShare.Visible = false;
         }
 
         private void BtnSettings_Click(object sender, EventArgs e)
@@ -346,6 +386,7 @@ namespace TelegramProxyParser
                 flowProxies.Controls.Clear();
                 allProxies.Clear();
                 workingProxies.Clear();
+                btnShare.Visible = false;
 
                 lblStatus.Text = $"Загрузка прокси из файла: {fileName}...";
 
@@ -401,6 +442,7 @@ namespace TelegramProxyParser
                 flowProxies.Controls.Clear();
                 allProxies.Clear();
                 workingProxies.Clear();
+                btnShare.Visible = false;
 
                 lblStatus.Text = $"Загрузка прокси {region}...";
 
@@ -537,6 +579,7 @@ namespace TelegramProxyParser
 
                 lblStatus.Text = $"Завершено | Всего: {allProxies.Count} | Рабочих: 0 | Fake TLS: {fakeTlsCount} | Secure: {secureCount} | Classic: {classicCount}";
                 flowProxies.Refresh();
+                btnShare.Visible = false;
             }
             else
             {
@@ -560,7 +603,62 @@ namespace TelegramProxyParser
                                 $"Fake TLS: {workingFakeTls}/{totalFakeTls} | " +
                                 $"Secure: {workingSecure}/{totalSecure} | " +
                                 $"Classic: {workingClassic}/{totalClassic} | 📊 Сортировка по пингу";
+
+                btnShare.Visible = true;
+                btnShare.BringToFront();
+                Form1_Resize(null, null);
             }
+        }
+
+        private void BtnShare_Click(object sender, EventArgs e)
+        {
+            if (workingProxies == null || workingProxies.Count == 0)
+            {
+                MessageBox.Show("Нет рабочих прокси для публикации!", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Берем первые 10 прокси с лучшим пингом
+            var topProxies = workingProxies
+                .OrderBy(p => p.Ping <= 0 ? 0 : p.Ping)
+                .Take(10)
+                .ToList();
+
+            // Формируем текст для копирования
+            string shareText = "";
+
+            for (int i = 0; i < topProxies.Count; i++)
+            {
+                var proxy = topProxies[i];
+                shareText += $"{i + 1}. {proxy.OriginalUrl}\n";
+            }
+
+            // Добавляем ссылку на GitHub
+            shareText += "\n\n📱 Скачать парсер для Windows или Android:\n";
+            shareText += "https://github.com/ComradeBingo/Proxy-telegram-windows\n";
+            shareText += "https://github.com/ComradeBingo/Proxy-Telegram-Android";
+
+            // Копируем в буфер обмена
+            Clipboard.SetText(shareText);
+
+            // Показываем уведомление
+            lblStatus.Text = $"📋 Скопировано {topProxies.Count} прокси в буфер обмена!";
+
+            // Визуальный фидбек
+            string originalText = btnShare.Text;
+            btnShare.Text = "✅ СКОПИРОВАНО!";
+            btnShare.Enabled = false;
+
+            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+            timer.Interval = 1500;
+            timer.Tick += (s, ev) =>
+            {
+                btnShare.Text = originalText;
+                btnShare.Enabled = true;
+                timer.Stop();
+            };
+            timer.Start();
         }
 
         private void ShowLoading(bool show, string message = null)
@@ -571,13 +669,16 @@ namespace TelegramProxyParser
                 return;
             }
 
-            loadingPanel.Visible = show;
-            flowProxies.Visible = !show;
+            if (loadingPanel != null)
+                loadingPanel.Visible = show;
 
-            if (show)
+            if (flowProxies != null)
+                flowProxies.Visible = !show;
+
+            if (show && loadingPanel != null)
             {
                 loadingPanel.BringToFront();
-                if (message != null)
+                if (message != null && lblLoadingProgress != null && progressBar != null)
                 {
                     lblLoadingProgress.Text = message;
                     lblLoadingProgress.AutoSize = true;
@@ -589,10 +690,13 @@ namespace TelegramProxyParser
                                                            loadingPanel.Height / 2 + 10);
                 }
             }
-            else
+            else if (!show && flowProxies != null)
             {
                 flowProxies.BringToFront();
                 flowProxies.Refresh();
+
+                if (btnShare != null && btnShare.Visible)
+                    btnShare.BringToFront();
             }
         }
 

@@ -11,7 +11,7 @@ namespace TelegramProxyParser.UI.Helpers
             var panel = new Panel()
             {
                 Width = width - 40,
-                Height = 250,
+                Height = 300,
                 BackColor = Color.White,
                 Margin = new Padding(0, 50, 0, 0)
             };
@@ -33,12 +33,14 @@ namespace TelegramProxyParser.UI.Helpers
                        "• Выбрать другую категорию\n" +
                        "• Увеличить таймаут в настройках\n" +
                        "\n"+
-                       "• Загрузить свой список прокси (кнопка «СВОЙ СПИСОК»)\n\n" +
-                       "Формат файла:\n" +
-                       "https://t.me/proxy?server=IP&port=ПОРТ&secret=СЕКРЕТ",
+                       "• Либо загрузить свой список прокси (кнопка «СВОЙ СПИСОК»)\n\n" +
+                       "Текстовый документ .txt со списком вида:\n" +
+                       "https://t.me/proxy?server=IP&port=ПОРТ&secret=СЕКРЕТ\n"+
+                       "или\n"+
+                       "tg://proxy?server=...&port=...&secret=",
                 Location = new Point(20, 90),
                 Width = panel.Width - 40,
-                Height = 160,
+                Height = 300,
                 Font = new Font("Tahoma", 10),
                 ForeColor = Color.FromArgb(114, 118, 125),
                 TextAlign = ContentAlignment.TopLeft
