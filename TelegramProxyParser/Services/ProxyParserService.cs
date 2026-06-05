@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -48,7 +49,7 @@ namespace TelegramProxyParser.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Ошибка загрузки прокси: {ex.Message}", ex);
+                throw new Exception(string.Format("Ошибка загрузки прокси: {0}", ex.Message), ex);
             }
         }
 
@@ -83,65 +84,110 @@ namespace TelegramProxyParser.Services
             }
             catch (Exception ex)
             {
-                throw new Exception($"Ошибка загрузки прокси: {ex.Message}", ex);
+                throw new Exception(string.Format("Ошибка загрузки прокси: {0}", ex.Message), ex);
             }
         }
 
-        // УНИВЕРСАЛЬНЫЙ МЕТОД ПАРСИНГА - работает с любым форматом и мусором
+        // Нормализация ключа прокси 
+        private string NormalizeProxyKey(string server, int port, string secret)
+        {
+            // Очищаем secret от мусора (всё после # @ $ &)
+            string cleanSecret = secret;
+            int cutIndex = cleanSecret.IndexOfAny(new[] { '#', '@', '$', '&' });
+            if (cutIndex > 0)
+            {
+                cleanSecret = cleanSecret.Substring(0, cutIndex);
+            }
+
+            // Дополнительная очистка от URL-encoded мусора
+            cleanSecret = Regex.Match(cleanSecret, @"[a-fA-F0-9]{16,}").Value;
+            if (string.IsNullOrEmpty(cleanSecret))
+            {
+                cleanSecret = secret;
+            }
+
+            // Приводим к нижнему регистру
+            cleanSecret = cleanSecret.ToLowerInvariant();
+
+            return string.Format("{0}:{1}:{2}", server, port, cleanSecret);
+        }
+
+        // Парсинг одной строки в ProxyInfo
+        private ProxyInfo ParseSingleProxy(string line, ProxyCheckerService checkerService = null)
+        {
+            try
+            {
+                string trimmedLine = line.Trim();
+
+                if (IsGarbageLine(trimmedLine))
+                    return null;
+
+                if (!HasProxyParameters(trimmedLine))
+                    return null;
+
+                string server = ExtractParameter(trimmedLine, "server");
+                string portStr = ExtractParameter(trimmedLine, "port");
+                string secret = ExtractParameter(trimmedLine, "secret");
+
+                if (string.IsNullOrEmpty(server) ||
+                    string.IsNullOrEmpty(portStr) ||
+                    string.IsNullOrEmpty(secret))
+                    return null;
+
+                int port;
+                if (!int.TryParse(portStr, out port))
+                    return null;
+
+                string tgProxyUrl = string.Format("tg://proxy?server={0}&port={1}&secret={2}",
+                    Uri.EscapeDataString(server),
+                    port,
+                    Uri.EscapeDataString(secret));
+
+                return new ProxyInfo
+                {
+                    Server = server,
+                    Port = port,
+                    Secret = secret,
+                    OriginalUrl = tgProxyUrl,
+                    ProxyType = checkerService != null ? checkerService.DetectProxyType(secret) : "Unknown"
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // УНИВЕРСАЛЬНЫЙ МЕТОД ПАРСИНГА - сначала сбор, потом нормализация и дедупликация
         public List<ProxyInfo> ParseProxyLines(List<string> lines, ProxyCheckerService checkerService = null)
         {
-            var proxies = new List<ProxyInfo>();
-
+            // 1. Сначала парсим все строки в прокси (без дедупликации)
+            var allParsedProxies = new List<ProxyInfo>();
             foreach (var line in lines)
             {
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
-                try
+                var proxy = ParseSingleProxy(line, checkerService);
+                if (proxy != null)
                 {
-                    string trimmedLine = line.Trim();
-
-                    // Пропускаем явный мусор
-                    if (IsGarbageLine(trimmedLine))
-                        continue;
-
-                    // Проверяем наличие ключевых параметров
-                    if (!HasProxyParameters(trimmedLine))
-                        continue;
-
-                    // Извлекаем параметры
-                    string server = ExtractParameter(trimmedLine, "server");
-                    string portStr = ExtractParameter(trimmedLine, "port");
-                    string secret = ExtractParameter(trimmedLine, "secret");
-
-                    if (string.IsNullOrEmpty(server) ||
-                        string.IsNullOrEmpty(portStr) ||
-                        string.IsNullOrEmpty(secret))
-                        continue;
-
-                    if (int.TryParse(portStr, out int port))
-                    {
-                        string tgProxyUrl = $"tg://proxy?server={Uri.EscapeDataString(server)}&port={port}&secret={Uri.EscapeDataString(secret)}";
-
-                        var proxy = new ProxyInfo
-                        {
-                            Server = server,
-                            Port = port,
-                            Secret = secret,
-                            OriginalUrl = tgProxyUrl,
-                            ProxyType = checkerService?.DetectProxyType(secret) ?? "Unknown"
-                        };
-
-                        proxies.Add(proxy);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Ошибка парсинга строки: {line}, {ex.Message}");
+                    allParsedProxies.Add(proxy);
                 }
             }
 
-            return proxies;
+            // 2. Дедупликация по нормализованному ключу (server:port:cleanSecret)
+            var uniqueProxies = new Dictionary<string, ProxyInfo>();
+            foreach (var proxy in allParsedProxies)
+            {
+                string key = NormalizeProxyKey(proxy.Server, proxy.Port, proxy.Secret);
+                if (!uniqueProxies.ContainsKey(key))
+                {
+                    uniqueProxies.Add(key, proxy);
+                }
+            }
+
+            // 3. Возвращаем уникальные прокси
+            return uniqueProxies.Values.ToList();
         }
 
         // Для обратной совместимости
@@ -179,7 +225,8 @@ namespace TelegramProxyParser.Services
 
         private string ExtractParameter(string text, string paramName)
         {
-            string pattern = $@"{paramName}=([^&\s]+)";
+            // Ищем paramName= и берем значение до & ИЛИ до @ ИЛИ до # ИЛИ до пробела ИЛИ до конца строки
+            string pattern = string.Format(@"{0}=([^&#@\s]+)", paramName);
             var match = Regex.Match(text, pattern);
             return match.Success ? Uri.UnescapeDataString(match.Groups[1].Value) : null;
         }
