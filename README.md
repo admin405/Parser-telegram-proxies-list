@@ -7,7 +7,7 @@
 Проксирование параллельными потоками (5-20 за раз), выдача готового результата с сортировкой по пингу (ограничения задаются в настройках)<br> 
 Программа проверяет доступность и пинг до самих серверов. Однако, работоспособность всех серверов в качестве прокси для telegram не гарантируется, как и их  блокировка.<br> 
 Это - версия для Windows. <b>Версия для Android <a href="https://github.com/ComradeBingo/Proxy-Telegram-Android">лежит здесь</a></b> <br> 
-Для работы с Windows 7 [нужен фикс](#Windows-7-fix) поддержки TlS 1.2/1.3  
+Для работы с Windows 7 [нужен фикс](#Windows-7-fix) поддержки TLS 1.2/1.3  
 
 <div align="center"><img width="720" height="497" align="center" src="https://github.com/user-attachments/assets/58ad7389-5f0e-4cfe-99f5-28216df1ee71" /></div><br>
 
