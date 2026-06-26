@@ -21,6 +21,8 @@ namespace TelegramProxyParser
         private Button btnProxyEU;
         private Button btnProxyRU;
         private Button btnTest;
+        private Button btnSoliSpirit;   
+        private Button btnTherealwh;
         private Button btnAbout;
         private Button btnSettings;
         private Button btnLoadCustom;
@@ -43,10 +45,12 @@ namespace TelegramProxyParser
         private ProxyCheckerService proxyChecker;
         private ProxyLoadService proxyLoadService;
 
-        private const string APP_VERSION = "1.9.2";
+        private const string APP_VERSION = "1.9.3";
         private const string PROXY_EU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt";
         private const string PROXY_RU_URL = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt";
         private const string PROXY_TEST_URL = "https://raw.githubusercontent.com/Surfboardv2ray/TGProto/refs/heads/main/proxies-tested.txt";
+        private const string PROXY_SOLISPIRIT_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/master/all_proxies.txt";
+        private const string PROXY_THEREALWH_URL = "https://raw.githubusercontent.com/Therealwh/MTPproxyLIST/refs/heads/main/verified/proxy_all_verified.txt";
 
         public Form1()
         {
@@ -140,6 +144,41 @@ namespace TelegramProxyParser
             btnTest.FlatAppearance.MouseDownBackColor = Color.FromArgb(127, 58, 156);
             btnTest.Click += BtnTest_Click;
 
+
+            btnSoliSpirit = new Button()
+            {
+                Text = "SoliSpirit",
+                Location = new Point(15, 62),  
+                Size = new Size(110, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(40, 85, 34),  
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSoliSpirit.FlatAppearance.BorderSize = 0;
+            btnSoliSpirit.FlatAppearance.MouseOverBackColor = Color.FromArgb(211, 166, 13);
+            btnSoliSpirit.FlatAppearance.MouseDownBackColor = Color.FromArgb(186, 146, 11);
+            btnSoliSpirit.Click += BtnSoliSpirit_Click;
+
+            // Кнопка Therealwh
+            btnTherealwh = new Button()
+            {
+                Text = "Therealwh",
+                Location = new Point(135, 62),  
+                Size = new Size(110, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(110, 65, 165),  
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnTherealwh.FlatAppearance.BorderSize = 0;
+            btnTherealwh.FlatAppearance.MouseOverBackColor = Color.FromArgb(142, 68, 173);
+            btnTherealwh.FlatAppearance.MouseDownBackColor = Color.FromArgb(128, 58, 156);
+            btnTherealwh.Click += BtnTherealwh_Click;
+
+
             btnAbout = new Button()
             {
                 Text = "СПРАВКА",
@@ -159,7 +198,7 @@ namespace TelegramProxyParser
             btnLoadCustom = new Button()
             {
                 Text = "📁 СВОЙ СПИСОК",
-                Location = new Point(115, 62),
+                Location = new Point(255, 62),
                 Size = new Size(150, 38),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(155, 89, 182),
@@ -198,7 +237,17 @@ namespace TelegramProxyParser
             btnSettings.FlatAppearance.MouseDownBackColor = Color.FromArgb(36, 51, 66);
             btnSettings.Click += BtnSettings_Click;
 
-            topPanel.Controls.AddRange(new Control[] { btnProxyEU, btnProxyRU, btnTest, btnAbout, btnLoadCustom, btnSettings, lblProgramName });
+            topPanel.Controls.AddRange(new Control[] {
+             btnProxyEU,
+                btnProxyRU,
+                btnTest,
+                btnSoliSpirit,    
+                btnTherealwh,     
+                btnAbout,
+                btnLoadCustom,
+                btnSettings,
+                lblProgramName
+                });
 
             flowProxies = new FlowLayoutPanel()
             {
@@ -440,6 +489,17 @@ namespace TelegramProxyParser
             await LoadAndCheckProxies(PROXY_TEST_URL, "Surfboardv2ray");
         }
 
+        private async void BtnSoliSpirit_Click(object sender, EventArgs e)
+        {
+            await LoadAndCheckProxies(PROXY_SOLISPIRIT_URL, "SoliSpirit");
+        }
+
+        private async void BtnTherealwh_Click(object sender, EventArgs e)
+        {
+            await LoadAndCheckProxies(PROXY_THEREALWH_URL, "Therealwh");
+        }
+
+
         private async Task LoadAndCheckProxies(string url, string region)
         {
             try
@@ -481,111 +541,127 @@ namespace TelegramProxyParser
         {
             _cancelRequested = false;
 
-            var cancelTimer = new System.Windows.Forms.Timer();
-            cancelTimer.Interval = 2000;
-            cancelTimer.Tick += (s, e) =>
+            // Создаем CancellationTokenSource для отмены
+            using (var cts = new CancellationTokenSource())
             {
-                if (!_cancelRequested && !btnCancel.IsDisposed)
+                // Подписываемся на событие отмены
+                var cancelButtonHandler = new EventHandler((s, e) =>
                 {
-                    btnCancel.Visible = true;
-                }
-                cancelTimer.Stop();
-            };
-            cancelTimer.Start();
+                    _cancelRequested = true;
+                    cts.Cancel();
+                    btnCancel.Visible = false;
+                    lblStatus.Text = "Отмена... дождитесь завершения текущих проверок";
+                });
 
-            int total = allProxies.Count;
-            int completed = 0;
-            int failedConsecutive = 0;
-            workingProxies = new List<ProxyInfo>();
+                btnCancel.Click += cancelButtonHandler;
 
-            int concurrency = currentConcurrency;
-            int maxConcurrency = currentConcurrency;
-            int minConcurrency = Math.Max(1, currentConcurrency / 2);
-
-            using (var semaphore = new SemaphoreSlim(concurrency))
-            {
-                var tasks = new List<Task>();
-                var progressUpdateInterval = TimeSpan.FromMilliseconds(100);
-                var lastProgressUpdate = DateTime.MinValue;
-
-                foreach (var proxy in allProxies)
+                try
                 {
-                    if (_cancelRequested)
-                        break;
-
-                    await semaphore.WaitAsync();
-
-                    tasks.Add(Task.Run(async () =>
+                    // Показываем кнопку "СТОП" через 2 секунды
+                    var cancelTimer = new System.Windows.Forms.Timer();
+                    cancelTimer.Interval = 2000;
+                    cancelTimer.Tick += (s, e) =>
                     {
-                        try
+                        if (!_cancelRequested && !btnCancel.IsDisposed)
                         {
-                            var result = await proxyChecker.CheckProxyWithTimeoutAsync(
-                                proxy.Server, proxy.Port, proxy.Secret, currentTimeout);
+                            btnCancel.Visible = true;
+                        }
+                        cancelTimer.Stop();
+                    };
+                    cancelTimer.Start();
 
-                            proxy.IsWorking = result.IsWorking;
-                            proxy.ProxyType = result.ProxyType;
-                            proxy.Ping = result.ResponseTime;
-                            proxy.ErrorMessage = result.ErrorMessage;
+                    int total = allProxies.Count;
+                    int completed = 0;
+                    workingProxies = new List<ProxyInfo>();
 
-                            if (proxy.IsWorking)
+                    int concurrency = currentConcurrency;
+
+                    using (var semaphore = new SemaphoreSlim(concurrency))
+                    {
+                        var tasks = new List<Task>();
+                        var progressUpdateInterval = TimeSpan.FromMilliseconds(100);
+                        var lastProgressUpdate = DateTime.MinValue;
+
+                        foreach (var proxy in allProxies)
+                        {
+                            // Проверяем отмену
+                            if (_cancelRequested || cts.Token.IsCancellationRequested)
+                                break;
+
+                            await semaphore.WaitAsync(cts.Token);
+
+                            tasks.Add(Task.Run(async () =>
                             {
-                                lock (workingProxies)
+                                try
                                 {
-                                    workingProxies.Add(proxy);
-                                    failedConsecutive = 0;
-                                }
+                                    // Проверяем отмену перед проверкой
+                                    cts.Token.ThrowIfCancellationRequested();
 
-                                if (workingProxies.Count % 10 == 0 && concurrency < maxConcurrency)
+                                    var result = await proxyChecker.CheckProxyWithTimeoutAsync(
+                                        proxy.Server, proxy.Port, proxy.Secret, currentTimeout);
+
+                                    // Проверяем отмену после проверки
+                                    cts.Token.ThrowIfCancellationRequested();
+
+                                    proxy.IsWorking = result.IsWorking;
+                                    proxy.ProxyType = result.ProxyType;
+                                    proxy.Ping = result.ResponseTime;
+                                    proxy.ErrorMessage = result.ErrorMessage;
+
+                                    if (proxy.IsWorking)
+                                    {
+                                        lock (workingProxies)
+                                        {
+                                            workingProxies.Add(proxy);
+                                        }
+                                    }
+
+                                    int currentCompleted = Interlocked.Increment(ref completed);
+
+                                    var now = DateTime.Now;
+                                    if (now - lastProgressUpdate >= progressUpdateInterval || currentCompleted == total)
+                                    {
+                                        lastProgressUpdate = now;
+                                        BeginInvoke(new Action(() =>
+                                        {
+                                            ShowLoading(true, $"Проверка прокси: {currentCompleted}/{total} (потоков: {concurrency}, таймаут: {currentTimeout}мс)");
+                                            lblStatus.Text = $"Проверка {region}: {currentCompleted}/{total} | Найдено рабочих: {workingProxies.Count}";
+                                        }));
+                                    }
+                                }
+                                catch (OperationCanceledException)
                                 {
-                                    concurrency = Math.Min(maxConcurrency, concurrency + 5);
+                                    // Отмена - ничего не делаем
+                                }
+                                finally
+                                {
                                     semaphore.Release();
                                 }
-                            }
-                            else
-                            {
-                                failedConsecutive++;
-                                if (failedConsecutive > 10 && concurrency > minConcurrency)
-                                {
-                                    concurrency = Math.Max(minConcurrency, concurrency - 5);
-                                    await semaphore.WaitAsync();
-                                    semaphore.Release();
-                                }
-                            }
-
-                            int currentCompleted = Interlocked.Increment(ref completed);
-
-                            var now = DateTime.Now;
-                            if (now - lastProgressUpdate >= progressUpdateInterval || currentCompleted == total)
-                            {
-                                lastProgressUpdate = now;
-                                BeginInvoke(new Action(() =>
-                                {
-                                    ShowLoading(true, $"Проверка прокси: {currentCompleted}/{total} (потоков: {concurrency}, таймаут: {currentTimeout}мс)");
-                                    lblStatus.Text = $"Проверка {region}: {currentCompleted}/{total} | Найдено рабочих: {workingProxies.Count}";
-                                }));
-                            }
+                            }, cts.Token));
                         }
-                        finally
-                        {
-                            semaphore.Release();
-                        }
-                    }));
+
+                        // Ждем завершения всех задач
+                        await Task.WhenAll(tasks);
+                    }
+
+                    cancelTimer.Dispose();
+                    btnCancel.Visible = false;
+
+                    if (_cancelRequested || cts.Token.IsCancellationRequested)
+                    {
+                        lblStatus.Text = $"Проверка отменена | Успело провериться: {completed}/{total} | Рабочих: {workingProxies.Count}";
+                        return;
+                    }
+
+                    ShowLoading(true, $"Проверка прокси: {total}/{total}");
+                    lblStatus.Text = $"Проверка {region}: {total}/{total} | Найдено рабочих: {workingProxies.Count}";
                 }
-
-                await Task.WhenAll(tasks);
+                finally
+                {
+                    // Отписываемся от события, чтобы избежать утечек памяти
+                    btnCancel.Click -= cancelButtonHandler;
+                }
             }
-
-            cancelTimer.Dispose();
-            btnCancel.Visible = false;
-
-            if (_cancelRequested)
-            {
-                lblStatus.Text = $"Проверка отменена | Успело провериться: {completed}/{total} | Рабочих: {workingProxies.Count}";
-                return;
-            }
-
-            ShowLoading(true, $"Проверка прокси: {total}/{total}");
-            lblStatus.Text = $"Проверка {region}: {total}/{total} | Найдено рабочих: {workingProxies.Count}";
         }
 
         private void ShowResult()
@@ -747,6 +823,8 @@ namespace TelegramProxyParser
             btnProxyEU.Enabled = enabled;
             btnProxyRU.Enabled = enabled;
             btnTest.Enabled = enabled;
+            btnSoliSpirit.Enabled = enabled;    
+            btnTherealwh.Enabled = enabled;     
             btnAbout.Enabled = enabled;
             btnSettings.Enabled = enabled;
             btnLoadCustom.Enabled = enabled;
@@ -756,6 +834,8 @@ namespace TelegramProxyParser
                 btnProxyEU.Text = "ЕВРОПА";
                 btnProxyRU.Text = "РОССИЯ";
                 btnTest.Text = "SurfboardV2ray";
+                btnSoliSpirit.Text = "SoliSpirit";      
+                btnTherealwh.Text = "Therealwh";        
                 btnSettings.Text = "Настройки";
                 btnLoadCustom.Text = "СВОЙ СПИСОК";
             }
@@ -764,6 +844,8 @@ namespace TelegramProxyParser
                 btnProxyEU.Text = "ЗАГРУЗКА";
                 btnProxyRU.Text = "ЗАГРУЗКА";
                 btnTest.Text = "ЗАГРУЗКА";
+                btnSoliSpirit.Text = "ЗАГРУЗКА";        
+                btnTherealwh.Text = "ЗАГРУЗКА";         
                 btnSettings.Text = "НАСТРОЙКИ";
                 btnLoadCustom.Text = "ЗАГРУЗКА";
             }

@@ -42,8 +42,8 @@ namespace TelegramProxyParser.UI.Forms
 
             cmbTimeout = new ComboBox()
             {
-                Location = new Point(210, 23),
-                Size = new Size(120, 25),
+                Location = new Point(250, 23),
+                Size = new Size(80, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 10)
             };
@@ -54,15 +54,15 @@ namespace TelegramProxyParser.UI.Forms
             {
                 Text = "Параллельных потоков:",
                 Location = new Point(25, 70),
-                Size = new Size(170, 25),
+                Size = new Size(190, 25),
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.FromArgb(52, 59, 75)
             };
 
             cmbConcurrency = new ComboBox()
             {
-                Location = new Point(210, 68),
-                Size = new Size(120, 25),
+                Location = new Point(250, 68),
+                Size = new Size(80, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = new Font("Segoe UI", 10)
             };
