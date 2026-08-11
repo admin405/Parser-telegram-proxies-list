@@ -27,7 +27,7 @@ namespace TelegramProxyParser
         private int _timeout = 300;
         private int _concurrency = 50;
 
-        private const string APP_VERSION = "2.0";
+        private const string APP_VERSION = "2.1.1";
 
         public Form1()
         {
@@ -62,6 +62,7 @@ namespace TelegramProxyParser
             mtProto.SetParameters(_timeout, _concurrency);
 
             _orchestrator = new ProxyCheckOrchestrator(loader, checker, mtProto);
+            _orchestrator.SetTimeout(_timeout);
             _orchestrator.StatusChanged += status =>
             this.Invoke(new Action(() => _ui.LblStatus.Text = status));
             _orchestrator.ProgressChanged += (msg, cur, total) =>
@@ -223,6 +224,7 @@ namespace TelegramProxyParser
             {
                 _timeout = timeout;
                 _concurrency = concurrency;
+                _orchestrator.SetTimeout(timeout);
                 _ui.LblStatus.Text = $"Настройки сохранены: таймаут {_timeout}мс, потоков: {_concurrency}";
             }
         }

@@ -17,16 +17,11 @@ namespace TelegramProxyParser
         {
             new SourceInfo
             {
-                Name = "Европа",
-                Url = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt",
+                Name = "kort0881",
+                Url = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_all_mtproto.txt",
                 Description = "Прокси от kort0881"
             },
-            new SourceInfo
-            {
-                Name = "Россия",
-                Url = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt",
-                Description = "Прокси от kort0881"
-            },
+            
             new SourceInfo
             {
                 Name = "SurfboardV2ray",
@@ -44,6 +39,12 @@ namespace TelegramProxyParser
                 Name = "Therealwh",
                 Url = "https://raw.githubusercontent.com/Therealwh/MTPproxyLIST/refs/heads/main/verified/proxy_all_verified.txt",
                 Description = "Прокси от Therealwh"
+            },
+            new SourceInfo
+            {
+                Name = "VestraNet",
+                Url = "https://raw.githubusercontent.com/MustafaBaqer/VestraNet-Nodes/refs/heads/main/protocols/mtproto.txt",
+                Description = "Прокси от MustafaBaqer"
             }
         };
 

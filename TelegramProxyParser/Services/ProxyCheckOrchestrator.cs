@@ -12,6 +12,7 @@ namespace TelegramProxyParser.Services
         private readonly ProxyLoadService _loadService;
         private readonly ProxyCheckerService _checkerService;
         private readonly MtProtoCheckerService _mtProtoService;
+        private int _timeout = 300;
 
         public event Action<string> StatusChanged;
         public event Action<string, int, int> ProgressChanged;
@@ -28,6 +29,12 @@ namespace TelegramProxyParser.Services
             _loadService = loadService;
             _checkerService = checkerService;
             _mtProtoService = mtProtoService;
+        }
+
+        public void SetTimeout(int timeout)
+        {
+            _timeout = timeout;
+            _checkerService.SetTimeout(timeout);
         }
 
         public async Task LoadFromUrlAsync(string url, string sourceName)
@@ -117,6 +124,7 @@ namespace TelegramProxyParser.Services
 
         public async Task CheckMtProtoAsync(int concurrency, CancellationToken ct)
         {
+            // 1. Фильтруем ee-прокси
             var eeProxies = AllProxies
                 .Where(p => p != null &&
                            !string.IsNullOrEmpty(p.Server) &&
@@ -128,26 +136,41 @@ namespace TelegramProxyParser.Services
             if (eeProxies.Count == 0)
             {
                 WorkingProxies = new List<ProxyInfo>();
+                StatusChanged?.Invoke("Нет прокси с секретом 'ee' для MTProto проверки");
                 return;
             }
 
-            // ВОТ СЮДА ДОБАВИТЬ:
-            _mtProtoService.SetParameters(3000, concurrency);
+            // 2. ДЕДУПЛИКАЦИЯ
+            var uniqueEeProxies = eeProxies
+                .GroupBy(p => $"{p.Server}:{p.Port}:{p.Secret}")
+                .Select(g => g.First())
+                .ToList();
 
-            StatusChanged?.Invoke($"MTProto проверка {eeProxies.Count} прокси...");
+            int duplicatesCount = eeProxies.Count - uniqueEeProxies.Count;
+            if (duplicatesCount > 0)
+            {
+                StatusChanged?.Invoke($"🗑️ Удалено дублей: {duplicatesCount} (было {eeProxies.Count}, стало {uniqueEeProxies.Count})");
+            }
 
+            // 3. Используем настройки пользователя
+            _mtProtoService.SetParameters(_timeout, concurrency);
+
+            StatusChanged?.Invoke($"MTProto проверка {uniqueEeProxies.Count} уникальных прокси...");
+
+            // 4. Проверяем только уникальные
             WorkingProxies = await _mtProtoService.CheckProxiesAsync(
-                eeProxies,
-                progress => ProgressChanged?.Invoke(progress, 0, eeProxies.Count),
+                uniqueEeProxies,
+                progress => ProgressChanged?.Invoke(progress, 0, uniqueEeProxies.Count),
                 ct);
 
+            // 5. Отмечаем, что проверены через MTProto
             foreach (var proxy in WorkingProxies)
             {
                 proxy.IsFromMtProtoCheck = true;
             }
 
             StatusChanged?.Invoke(
-                $"MTProto проверка завершена | Всего: {eeProxies.Count} | Рабочих: {WorkingProxies.Count}");
+                $"MTProto проверка завершена | Уникальных: {uniqueEeProxies.Count} | Рабочих: {WorkingProxies.Count}");
         }
 
         public void Reset()

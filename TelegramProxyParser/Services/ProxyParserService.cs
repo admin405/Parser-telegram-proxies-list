@@ -91,7 +91,7 @@ namespace TelegramProxyParser.Services
         // Нормализация ключа прокси 
         private string NormalizeProxyKey(string server, int port, string secret)
         {
-            // Очищаем secret от мусора (всё после # @ $ &)
+            // Очищаем secret от мусора
             string cleanSecret = secret;
             int cutIndex = cleanSecret.IndexOfAny(new[] { '#', '@', '$', '&' });
             if (cutIndex > 0)
@@ -99,17 +99,15 @@ namespace TelegramProxyParser.Services
                 cleanSecret = cleanSecret.Substring(0, cutIndex);
             }
 
-            // Дополнительная очистка от URL-encoded мусора
-            cleanSecret = Regex.Match(cleanSecret, @"[a-fA-F0-9]{16,}").Value;
+            // Извлекаем только hex-часть
+            cleanSecret = System.Text.RegularExpressions.Regex.Match(cleanSecret, @"[a-fA-F0-9]{16,}").Value;
             if (string.IsNullOrEmpty(cleanSecret))
             {
                 cleanSecret = secret;
             }
 
-            // Приводим к нижнему регистру
             cleanSecret = cleanSecret.ToLowerInvariant();
-
-            return string.Format("{0}:{1}:{2}", server, port, cleanSecret);
+            return $"{server}:{port}:{cleanSecret}";
         }
 
         // Парсинг одной строки в ProxyInfo

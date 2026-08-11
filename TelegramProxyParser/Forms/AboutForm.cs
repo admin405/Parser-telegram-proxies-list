@@ -32,11 +32,12 @@ namespace TelegramProxyParser.UI.Forms
             {
                 Text = $"Telegram Proxy Parser v{appVersion}\n\n" +
                        "Парсер и проверка прокси для Telegram\n\n" +
-                       "Источники:\n" +
-                       "• Европа: Маскировка под Google, Amazon, Microsoft и др.\n" +
-                       "• Россия: Маскировка под Yandex, VK, Mail.ru, Gosuslugi и др.\n" +
-                       "• SurfboardV2ray: Большой список прокси\n" +
-                       "• СВОЙ СПИСОК: Загрузка своего .txt файла\n\n" +
+                       "Программа опирается на списки от:\n" +
+                       "• Kort0881\n" +
+                       "• SoliSpirit\n" +
+                       "• TheRealwh\n" +
+                       "• SurfboardV2ray\n" +
+                       "• Кнопка 'загрузить свой список' - проверка локального .txt файла\n\n" +
                        "• Списки обновляются каждый час.\n" +
                        "• Доступность сервера не гарантирует его работоспособность!\n" +
                        "• Они не дремлют... Но и мы не спим!\n\n" +

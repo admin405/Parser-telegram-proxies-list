@@ -26,7 +26,7 @@ namespace TelegramProxyParser.Services
             // Игнорируем входящие параметры из "Настроек", используем константы
             _timeout = MT_PROTO_TIMEOUT;
             _concurrency = MT_PROTO_CONCURRENCY;
-            
+
         }
 
         public async Task<List<ProxyInfo>> CheckProxiesAsync(
