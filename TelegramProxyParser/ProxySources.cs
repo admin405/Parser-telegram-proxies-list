@@ -17,16 +17,11 @@ namespace TelegramProxyParser
         {
             new SourceInfo
             {
-                Name = "Европа",
-                Url = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_eu.txt",
+                Name = "kort0881",
+                Url = "https://github.com/kort0881/telegram-proxy-collector/blob/main/proxy_all_mtproto.txt",
                 Description = "Прокси от kort0881"
             },
-            new SourceInfo
-            {
-                Name = "Россия",
-                Url = "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/main/proxy_ru.txt",
-                Description = "Прокси от kort0881"
-            },
+            
             new SourceInfo
             {
                 Name = "SurfboardV2ray",

@@ -27,7 +27,7 @@ namespace TelegramProxyParser
         private int _timeout = 300;
         private int _concurrency = 50;
 
-        private const string APP_VERSION = "2.0";
+        private const string APP_VERSION = "2.1.0";
 
         public Form1()
         {

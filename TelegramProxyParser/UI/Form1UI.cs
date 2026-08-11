@@ -239,7 +239,7 @@ namespace TelegramProxyParser.UI
             // Заголовок "Источники"
             var lblSources = new Label()
             {
-                Text = "ИСТОЧНИКИ ПРОКСИ",
+                Text = "АВТОРСКИЕ СПИСКИ",
                 Location = new Point(10, 267),
                 AutoSize = true,
                 ForeColor = Color.FromArgb(52, 73, 94),
